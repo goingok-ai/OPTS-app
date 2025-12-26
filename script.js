@@ -327,7 +327,19 @@ document.addEventListener('DOMContentLoaded', () => {
             ckd_stage: document.getElementById('ckd_stage').value,
             cv_event_recent_12m: document.getElementById('cv_event_recent_12m').checked,
             hypocalcemia_risk: document.getElementById('hypocalcemia_risk').checked,
-            contraindication_pth: document.getElementById('contraindication_pth').checked,
+
+            // New items
+            hypercalcemia: document.getElementById('hypercalcemia').checked,
+            bone_tumor: document.getElementById('bone_tumor').checked,
+            hyperparathyroidism: document.getElementById('hyperparathyroidism').checked,
+
+            // Derived
+            contraindication_pth: (() => {
+                return document.getElementById('hypercalcemia').checked ||
+                    document.getElementById('bone_tumor').checked ||
+                    document.getElementById('hyperparathyroidism').checked;
+            })(),
+
             injectable: document.getElementById('injectable').checked
         };
     }

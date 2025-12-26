@@ -544,7 +544,7 @@ function determineTreatment(risk, inputs) {
                 first_line: "生活習慣指導・食事・運動療法",
                 second_line: "---",
                 third_line: "---",
-                note: "現状は薬物治療の水準はみたしません。ハイリスク因子があるので、椎体骨折の積極的な検索を推奨します。骨密度検査も年1回を推奨します。"
+                note: "現状は薬物治療の基準は満たしません。ハイリスク因子があるので、椎体骨折の積極的な検索を推奨します。骨密度検査も年1回を推奨します。"
             };
         }
 
@@ -587,10 +587,12 @@ function checkWarnings(inputs, treatment) {
 
     // Hypocalcemia
     if (inputs.hypocalcemia_risk) {
-        warnings.push("低カルシウム血症リスクあり：デノスマブ、BP、ロモソズマブ等はCa/VitD補充後に開始してください。");
-        if (treatment && treatment.first_line && treatment.first_line.includes('デノスマブ')) {
-            warnings.push("CRITICAL: デノスマブは低Ca血症で禁忌・慎重投与です。補正・モニタリングを徹底してください。");
-        }
+        warnings.push("低カルシウム血症；ロモソズマブ、デノスマブ、ビスホスホネートはカルシウムとビタミンD投与でしっかりと補正してから使用してください。");
+    }
+
+    // Hypercalcemia Specific Warning
+    if (inputs.hypercalcemia) {
+        warnings.push("高カルシウム血症；活性型ビタミンD製剤・カルシウムサプリメントは中止のうえ、原疾患を検索してください。悪性腫瘍（肺がん、乳がん、前立腺がん、血液がん）、副甲状腺機能亢進症、サルコイドーシスなど");
     }
 
     // PTH Contraindications (Hypercalcemia, Bone Tumor, Primary HPT, Paget's)
