@@ -92,6 +92,10 @@ body {
     .layout-grid {
         grid-template-columns: 1fr;
     }
+
+    .form-row {
+        flex-direction: column;
+    }
 }
 
 /* Cards */
