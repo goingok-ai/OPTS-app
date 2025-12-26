@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OPTS - 骨粗鬆症治療薬 選択補助システム</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Outfit:wght@300;400;500;600&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <meta name="description" content="日本の骨粗鬆症診療ガイドラインおよびASBMR/BHOF 2024 Position Statementに基づく治療薬選択補助ツール">
+</head>
+
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="header-content">
+                <h1>OPTS</h1>
+                <p style="font-size: 1.2rem; margin-top: -5px; margin-bottom: 5px; color: #666; font-weight: 500;">
+                    Osteoporosis Treatment Support</p>
+                <p>骨粗鬆症治療薬 選択補助システム</p>
+                <div class="guideline-badge">Based on Japan GL 2025 & ASBMR/BHOF PS 2024</div>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <div class="layout-grid">
+                <!-- Input Section -->
+                <section class="input-section card">
+                    <h2><span class="icon">📋</span>患者情報入力</h2>
+                    <form id="patientForm">
+                        <!-- 1. 基本情報 -->
+                        <div class="form-group-container">
+                            <h3>1. 基本情報</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="sex">性別</label>
+                                    <select id="sex" name="sex" required>
+                                        <option value="female" selected>女性</option>
+                                        <option value="male">男性</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="age">年齢 (40-99)</label>
+                                    <input type="number" id="age" name="age" min="40" max="120" value="70" required>
+                                </div>
+                                <div class="form-group" id="menopauseGroup">
+                                    <label for="menopause">閉経状況</label>
+                                    <select id="menopause" name="menopause">
+                                        <option value="yes" selected>閉経あり</option>
+                                        <option value="no">閉経なし</option>
+                                        <option value="pregnancy">妊娠中・授乳中</option>
+                                        <option value="unknown">不明</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 2. 骨折歴 -->
+                        <div class="form-group-container">
+                            <h3>2. 骨折歴 / リスク因子</h3>
+
+                            <div class="checkbox-group">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="fx_any" name="fx_any">
+                                    <span class="checkmark"></span>
+                                    明らかな脆弱性骨折あり（一般的には50歳以降）
+                                </label>
+                            </div>
+
+                            <div id="fractureDetails" class="conditional-section hidden">
+                                <!-- 1. Clinical Fracture / Proximal Femur (Nested under fx_any) -->
+                                <div class="checkbox-group ml-4">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="fx_severe" name="fx_severe">
+                                        <span class="checkmark"></span>
+                                        臨床椎体骨折・大腿骨近位部骨折
+                                    </label>
+                                </div>
+
+                                <!-- 1-1. Severe Vertebral (Nested under fx_severe) -->
+                                <div id="fx_severe_details" class="conditional-section ml-8 hidden">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="fx_vertebral_severe" name="fx_vertebral_severe">
+                                        <span class="checkmark"></span>
+                                        重症椎体骨折（複数の椎体骨折、高度に圧壊した椎体骨折）
+                                    </label>
+                                </div>
+
+                                <!-- 2. Recent Fracture (Nested under fx_any) -->
+                                <div class="checkbox-group ml-4">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="fx_recent_24m" name="fx_recent_24m">
+                                        <span class="checkmark"></span>
+                                        直近 24か月以内の骨折
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- New Top Level: Morphological Vertebral Fracture -->
+                            <div class="checkbox-group">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="fx_morphological" name="fx_morphological">
+                                    <span class="checkmark"></span>
+                                    骨折の自覚はないがX線で圧壊した椎体あり(形態椎体骨折)
+                                </label>
+                            </div>
+
+                            <!-- Nested under fx_morphological -->
+                            <div id="fx_morphological_details" class="conditional-section ml-4 hidden">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="fx_morphological_severe" name="fx_morphological_severe">
+                                    <span class="checkmark"></span>
+                                    複数の椎体骨折、高度に圧壊した椎体骨折
+                                </label>
+                            </div>
+
+                            <div class="risk-factors-section mt-2">
+                                <button type="button" id="btn_risk_details" class="btn-toggle-details">
+                                    詳細な骨折ハイリスク因子を選択 ▼
+                                </button>
+
+                                <div id="risk_details_container" class="risk-details-container hidden">
+                                    <p class="section-note">以下のいずれかに該当する場合はチェックしてください（骨量減少領域でも治療を推奨します）</p>
+
+                                    <div class="checkbox-group">
+                                        <label class="checkbox-container">
+                                            <input type="checkbox" id="risk_steroid" name="risk_steroid">
+                                            <span class="checkmark"></span>
+                                            グルココルチコイド内服歴あり(3か月以上)
+                                        </label>
+                                        <div id="steroid_details_container"
+                                            style="display: none; padding-left: 20px; margin-top: 5px; border-left: 3px solid #eee;">
+                                            <div style="margin-bottom: 8px;">
+                                                <label class="checkbox-container" style="font-size: 0.9em;">
+                                                    <input type="checkbox" id="steroid_current" name="steroid_current">
+                                                    <span class="checkmark"></span>
+                                                    現在も内服中
+                                                </label>
+                                            </div>
+                                            <div style="font-size: 0.9em;">
+                                                <div style="font-weight: bold; margin-bottom: 3px;">グルココルチコイド投与量 1日量
+                                                </div>
+                                                <div class="radio-group"
+                                                    style="flex-direction: column; gap: 5px; align-items: flex-start;">
+                                                    <label class="radio-container">
+                                                        <input type="radio" name="steroid_dose" value="lt_5">
+                                                        <span class="radio-mark"></span>
+                                                        PSL 5mg未満
+                                                    </label>
+                                                    <label class="radio-container">
+                                                        <input type="radio" name="steroid_dose" value="5_to_7.5">
+                                                        <span class="radio-mark"></span>
+                                                        PSL 5-7.5mg未満
+                                                    </label>
+                                                    <label class="radio-container">
+                                                        <input type="radio" name="steroid_dose" value="ge_7.5">
+                                                        <span class="radio-mark"></span>
+                                                        PSL 7.5mg以上
+                                                    </label>
+                                                </div>
+                                                <small
+                                                    style="color: #666; display: block; margin-top: 3px;">[投与量はいずれか一つを選択]</small>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="checkbox-group">
+                                        <label class="checkbox-container">
+                                            <input type="checkbox" id="risk_parent_hip_fx" name="risk_parent_hip_fx">
+                                            <span class="checkmark"></span>
+                                            両親の大腿骨近位部骨折歴
+                                        </label>
+                                    </div>
+
+                                    <div class="checkbox-group">
+                                        <label class="checkbox-container">
+                                            <input type="checkbox" id="risk_frax" name="risk_frax">
+                                            <span class="checkmark"></span>
+                                            FRAX 主要骨粗鬆症性骨折 > 15% / 10年
+                                        </label>
+                                    </div>
+
+                                    <div class="checkbox-group">
+                                        <label class="checkbox-container">
+                                            <input type="checkbox" id="risk_diabetes" name="risk_diabetes">
+                                            <span class="checkmark"></span>
+                                            <div class="label-text-wrapper">
+                                                <span class="main-label">2型糖尿病</span>
+                                                <small class="risk-note">※治療期間10年以上 / HbA1c>7.4% / インスリン治療中 /
+                                                    転倒リスク高のいずれか</small>
+                                            </div>
+                                        </label>
+                                    </div>
+
+                                    <div class="checkbox-group">
+                                        <label class="checkbox-container">
+                                            <input type="checkbox" id="risk_ckd" name="risk_ckd">
+                                            <span class="checkmark"></span>
+                                            CKD stage 3-5
+                                        </label>
+                                    </div>
+
+                                    <div class="checkbox-group">
+                                        <label class="checkbox-container">
+                                            <input type="checkbox" id="risk_copd" name="risk_copd">
+                                            <span class="checkmark"></span>
+                                            COPD
+                                        </label>
+                                    </div>
+
+
+
+                                    <div class="checkbox-group">
+                                        <label class="checkbox-container">
+                                            <input type="checkbox" id="risk_antihormonal" name="risk_antihormonal">
+                                            <span class="checkmark"></span>
+                                            乳癌・前立腺癌に対する抗ホルモン療法中
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 3. 検査値 -->
+                        <div class="form-group-container">
+                            <h3>3. 検査値・臨床状況</h3>
+
+                            <div class="form-group">
+                                <label for="t_group">骨密度 (T-score 最低値)</label>
+                                <select id="t_group" name="t_group" class="emphasized-input" style="color: #333;"
+                                    required>
+                                    <option value="" disabled selected>-選択してください-</option>
+                                    <option value="ge_-1.0">≧ -1.0 (正常)</option>
+                                    <option value="-2.5_to_-1.0">-1.0 ～ -2.5 (骨量減少)</option>
+                                    <option value="-3.3_to_-2.5">-2.5 ～ -3.3 (骨粗鬆症)</option>
+                                    <option value="lt_-3.3">
+                                        < -3.3 (重症)</option>
+                                    <option value="unknown">不明</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="ckd_stage">腎機能</label>
+                                <select id="ckd_stage" name="ckd_stage" class="emphasized-input" style="color: #333;"
+                                    required>
+                                    <option value="" disabled selected>-選択してください-</option>
+                                    <option value="1_2">eGFR 60以上</option>
+                                    <option value="3">eGFR 30-59</option>
+                                    <option value="4_5">eGFR 29未満</option>
+                                    <option value="unknown">不明</option>
+                                </select>
+                            </div>
+
+                            <div class="checkbox-group mt-2">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="cv_event_recent_12m" name="cv_event_recent_12m">
+                                    <span class="checkmark"></span>
+                                    直近12か月以内の心血管イベント（心筋梗塞/狭心症/脳卒中）
+                                </label>
+                            </div>
+
+                            <div class="checkbox-group">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="hypocalcemia_risk" name="hypocalcemia_risk">
+                                    <span class="checkmark"></span>
+                                    低Ca血症リスク / VitD未補正
+                                </label>
+                            </div>
+
+                            <div class="checkbox-group">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="contraindication_pth" name="contraindication_pth">
+                                    <span class="checkmark"></span>
+                                    <div>
+                                        PTH製剤の禁忌に該当
+                                        <div style="font-size: 0.85em; color: #666; margin-top: 2px;">
+                                            (高Ca血症、骨腫瘍、副甲状腺機能亢進症、骨パジェット病)
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div class="checkbox-group">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="injectable" name="injectable" checked>
+                                    <span class="checkmark"></span>
+                                    注射製剤の自己注射・通院が可能
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- 4. FRAX Calculator Support -->
+                        <div class="form-group-container frax-calculator-section">
+                            <h3>4. FRAX 簡易計算サポート</h3>
+                            <div class="form-group">
+                                <label>今すぐFRAXを計算しますか？</label>
+                                <div class="radio-group">
+                                    <label class="radio-container">
+                                        <input type="radio" id="frax_toggle_yes" name="calc_frax_toggle" value="yes">
+                                        <span class="radio-mark"></span>
+                                        はい
+                                    </label>
+                                    <label class="radio-container">
+                                        <input type="radio" id="frax_toggle_no" name="calc_frax_toggle" value="no"
+                                            checked>
+                                        <span class="radio-mark"></span>
+                                        いいえ
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div id="frax_inputs" class="frax-inputs hidden">
+                                <p style="margin-bottom: 10px; font-weight: bold; color: #2c3e50;">
+                                    上記　2.骨折歴/リスク因子　特に「詳細な骨折ハイリスク因子」を入力してください</p>
+                                <p class="subsection-title">生活習慣・既往歴 (詳細)</p>
+
+                                <div class="checkbox-group">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="frax_alcohol" name="frax_alcohol">
+                                        <span class="checkmark"></span>
+                                        <div class="label-text-wrapper">
+                                            <span class="main-label">飲酒習慣あり</span>
+                                            <small
+                                                class="risk-note">※1日エタノール24g以上（ビール600ml、日本酒2合、ワイン2杯、焼酎100ml、ウイスキーダブル）</small>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="checkbox-group">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="frax_smoking" name="frax_smoking">
+                                        <span class="checkmark"></span>
+                                        喫煙習慣あり
+                                    </label>
+                                </div>
+
+                                <div class="checkbox-group">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="frax_secondary_digestive"
+                                            name="frax_secondary_digestive">
+                                        <span class="checkmark"></span>
+                                        胃切除後、吸収不良症候群の既往
+                                    </label>
+                                </div>
+                                <div class="checkbox-group">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="frax_secondary_menopause"
+                                            name="frax_secondary_menopause">
+                                        <span class="checkmark"></span>
+                                        早期閉経（45歳未満）・卵巣摘出後
+                                    </label>
+                                </div>
+
+                                <p class="subsection-title">治療中の疾患</p>
+                                <div class="checkbox-grid">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="frax_ra" name="frax_ra">
+                                        <span class="checkmark"></span>
+                                        関節リウマチ
+                                    </label>
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="frax_sec_type1dm" name="frax_sec_type1dm">
+                                        <span class="checkmark"></span>
+                                        1型糖尿病
+                                    </label>
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="frax_sec_hyperthyro" name="frax_sec_hyperthyro">
+                                        <span class="checkmark"></span>
+                                        甲状腺機能亢進症
+                                    </label>
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="frax_sec_oi" name="frax_sec_oi">
+                                        <span class="checkmark"></span>
+                                        骨形成不全症
+                                    </label>
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="frax_sec_hepatitis" name="frax_sec_hepatitis">
+                                        <span class="checkmark"></span>
+                                        慢性肝炎
+                                    </label>
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="frax_sec_uc" name="frax_sec_uc">
+                                        <span class="checkmark"></span>
+                                        潰瘍性大腸炎
+                                    </label>
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="frax_sec_crohn" name="frax_sec_crohn">
+                                        <span class="checkmark"></span>
+                                        クローン病
+                                    </label>
+                                </div>
+
+                                <button type="button" id="btn_calc_frax" class="btn-calc-frax">FRAX用 情報を整理する</button>
+
+                                <div id="frax_result_area" class="frax-result-area hidden">
+                                    <h4>FRAXサイト入力用 データ整理</h4>
+                                    <div class="result-content" id="frax_result_content">
+                                        <!-- JS populates this -->
+                                    </div>
+                                    <p class="instruction-text">
+                                        上記の内容をFRAXサイトで入力してください。<br>
+                                        サイトを開くと「Cookieの選択」が出ることがあります。「Accept」等を選択して進んでください。
+                                    </p>
+                                    <a href="https://www.fraxplus.org/ja/calculation-tool/#risk-factors" target="_blank"
+                                        class="btn-open-frax">
+                                        FRAXサイトを開く (別タブ)
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- Result Section -->
+                <section class="result-section">
+                    <!-- Risk Card -->
+                    <div class="card result-card" id="riskCard">
+                        <div class="card-header">
+                            <span class="label-heading">Risk Classification</span>
+                            <div class="risk-badge" id="riskBadge">---</div>
+                        </div>
+                        <div class="card-body">
+                            <div class="target-goal">
+                                <span class="label">治療目標 (Treat to Target)</span>
+                                <p id="treatmentGoal" class="goal-text">---</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Critical Alerts (Always Visible) -->
+                    <!-- Recent Fracture Warning -->
+                    <div id="recent_fx_warning_container" class="warning-card hidden"
+                        style="background-color: #fff3cd; border: 1px solid #ffeeba; color: #856404;">
+                        <div class="warning-header"
+                            style="display: flex; align-items: center; justify-content: center; margin-bottom: 8px;">
+                            <span class="warning-icon">⚠️</span>
+                            <h3 style="margin: 0; font-size: 1rem;">直近24か月以内の骨折あり</h3>
+                        </div>
+                        <p style="font-size: 0.9rem; text-align: left; margin: 0;">
+                            直近24か月以内の骨折は、再骨折リスクが極めて高い状態です。速やかな治療介入（骨形成促進薬の検討など）を強く推奨します。
+                        </p>
+                    </div>
+
+                    <!-- Rare Case Warning -->
+                    <div id="rare_case_warning_container" class="warning-card hidden"
+                        style="background-color: #e2e3e5; border: 1px solid #d6d8db; color: #383d41;">
+                        <div class="warning-header"
+                            style="display: flex; align-items: center; justify-content: center; margin-bottom: 8px;">
+                            <span class="warning-icon">ℹ️</span>
+                            <h3 style="margin: 0; font-size: 1rem;">レアケース (骨密度正常・椎体骨折なし・最近の骨折あり)</h3>
+                        </div>
+                        <div style="font-size: 0.9rem; text-align: left;">
+                            <p style="margin-bottom: 8px;">
+                                明らかに脆弱性骨折であり、椎体骨折の既往がないのであれば日本のガイドライン上では骨粗鬆症薬物治療推奨とはなっていないレアケースです。</p>
+                            <p style="margin-bottom: 8px;">続発性骨粗鬆症として生活習慣病関連骨粗鬆症などの合併はありませんか？<br>大腿骨のDEXAは麻痺側で評価していますか？
+                            </p>
+                            <p style="margin-bottom: 8px;">下記のケースであれば症状詳記に診断根拠を記載して薬物治療も考慮しましょう。</p>
+                            <ul style="margin: 4px 0 8px 1.5em; padding: 0;">
+                                <li>DEXAの評価がしっかりとできない状態（変形性関節症性変化、人工股関節術後や脊椎手術の術後)で、明らかに脆弱性骨折</li>
+                                <li>あきらかに脆弱性骨折＋続発性骨粗鬆症(骨質劣化型の骨粗鬆症の可能性）</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Collapsible Warnings Group -->
+                    <div class="collapsible-warnings-group">
+                        <!-- CKD Stage 3 Warning -->
+                        <details id="ckd3_warning_container" class="warning-accordion hidden"
+                            style="display: none; background-color: #fff8e1; border: 1px solid #ffe0b2; color: #f57c00;">
+                            <summary>⚠️ CKD Stage 3 の注意事項</summary>
+                            <div class="accordion-content">
+                                <p class="emphasis-text">CKD3から二次性副甲状腺機能亢進症(SHPT)のリスクが上がります。iPTHの測定を推奨します。</p>
+                                <p>SHPTであれば、以下で推奨が出たとしてもテリパラチド、アバロパラチドを使用しないことを提案します。</p>
+                            </div>
+                        </details>
+
+                        <!-- CKD 4-5 Warning -->
+                        <details id="ckd_warning_container" class="warning-accordion hidden"
+                            style="display: none; background-color: #fff3e0; border: 1px solid #ffcc80; color: #e65100;">
+                            <summary>⚠️ 慢性腎臓病進行期（CKD4-5）の治療方針</summary>
+                            <div class="accordion-content">
+                                <p class="emphasis-text">慢性腎臓病進行期（CKD4－5）では、骨折リスクが高い一方で、骨粗しょう症治療薬のエビデンスは限定的なものしかありません。
+                                </p>
+                                <p>まず、Ca, IP, iPTH,
+                                    25(OH)Dを評価して異常値があればCKD-MBDとして治療を腎臓内科医に依頼してください。骨粗鬆症治療は運動、栄養療法を推奨します。CKD-MBDがコントロールでき、運動・栄養療法のコンプライアンスがよく、さらなる治療を希望される場合、骨回転を考慮したうえで腎臓内科医と協議の上薬物治療を提案します。
+                                </p>
+                                <hr>
+                                <p class="emphasis-text">腎性骨異栄養症(純粋な骨病変)としては低回転骨（adynamic bone disorder: ABD）が最多型となります。
+                                </p>
+                                <p>低回転骨状態での抗骨吸収薬の使用は骨リモデリングの過剰抑制を介して、骨質低下や血管石灰化リスクを高める可能性が指摘されています。</p>
+                                <p>腎性骨異栄養症の診断は骨生検がGold
+                                    standardですが、骨生検を基準とした系統的レビューおよびメタ解析により、ABDはPTH低値や骨型アルカリフォスファターゼ（BALP）低値と関連します。<br><small
+                                        class="citation">(Chao CT, et al. Adynamic bone disorder in chronic kidney
+                                        disease...)</small></p>
+                                <div class="guideline-box">
+                                    <h4>1. 低回転骨 (iPTH <基準上限値の2倍 かつ BALP低値)</h4>
+                                            <ul>
+                                                <li>適応があればテリパラチド、アバロパラチド</li>
+                                                <li>治療終了後も低回転骨であれば、抗骨吸収抑制薬による逐次療法はおこなわないことも考慮します</li>
+                                            </ul>
+                                            <h4>2. iPTH >基準上限値の2倍 かつ BALP 正常～高値</h4>
+                                            <ul>
+                                                <li>適応があればロモソズマブ→デノスマブ(いずれも補正困難な低Ca血症のリスクがあります)</li>
+                                                <li>ビスフォスフォネート（アレンドロン酸、ミノドロン酸　慎重投与；急性腎障害、低カルシウム血症に注意してください）</li>
+                                            </ul>
+                                </div>
+                            </div>
+                        </details>
+
+                        <!-- Menopausal Transition Warning -->
+                        <details id="menopausal_transition_container" class="warning-accordion hidden"
+                            style="display: none; background-color: #fff0f5; border: 1px solid #fce4ec; color: #4a4a4a;">
+                            <summary>🌸 更年期症状はありませんか？</summary>
+                            <div class="accordion-content">
+                                <p>閉経期は骨密度が急激に低下しやすい時期です。</p>
+                                <p>更年期症状はエストロゲンが減ってきたことによる症状で、骨量も減りやすいです。</p>
+                                <p>更年期症状を改善するホルモン補充療法は、ひっそりと骨も保護する作用があります。</p>
+                                <p style="font-weight: bold; margin-top: 10px;">適応があれば更年期症状を積極的に治療しましょう。</p>
+                                <p>下記の骨粗鬆症リスクのある人は特におすすめです。</p>
+                            </div>
+                        </details>
+
+                        <!-- GIO Warning -->
+                        <details id="gio_warning_container" class="warning-accordion hidden"
+                            style="display: none; background-color: #e3f2fd; border: 1px solid #bbdefb; color: #0d47a1;">
+                            <summary>💊 グルココルチコイド誘発性骨粗鬆症</summary>
+                            <div class="accordion-content">
+                                <p>現在ステロイド内服中の方は、グルココルチコイド誘発性骨粗鬆症の管理と治療のガイドライン2023に基づいたリスク評価が必要です。</p>
+                                <p style="margin-top: 10px;">リスク評価のために6－12か月ごとの骨密度評価、脊椎X線検査で椎体骨折の検索が推奨されています。</p>
+                                <p style="margin-top: 10px;">療養指導としては骨粗鬆症同様にカルシウム、ビタミンD、タンパク質を十分量摂取する食事療法を推奨します。</p>
+                            </div>
+                        </details>
+
+                        <!-- FRAX Check -->
+                        <details id="frax_check_container" class="warning-accordion hidden" style="display: none;">
+                            <summary>🔍 骨粗鬆症リスクを見逃していませんか？</summary>
+                            <div class="frax-check-content accordion-content">
+                                <p class="emphasis-text">以下の状態が一つでもあてはまればFRAXでの評価を推奨します</p>
+                                <h4>危険因子</h4>
+                                <ul class="frax-risk-list">
+                                    <li>身長が4cm縮んだ</li>
+                                    <li>飲酒習慣あり</li>
+                                    <li>喫煙習慣あり</li>
+                                    <li>BMI < 19 kg/㎡（やせ型体型）</li>
+                                    <li>胃切除後、吸収不良症候群の既往</li>
+                                    <li>早期閉経（45歳未満で生理がとまった）</li>
+                                    <li>卵巣摘出後</li>
+                                </ul>
+                                <details class="frax-details">
+                                    <summary>▶ これらの病気で治療中である（クリックして展開）</summary>
+                                    <ul class="nested-list">
+                                        <li>関節リウマチ</li>
+                                        <li>1型糖尿病</li>
+                                        <li>骨形成不全症</li>
+                                        <li>甲状腺機能亢進症</li>
+                                        <li>慢性肝炎</li>
+                                        <li>潰瘍性大腸炎</li>
+                                        <li>クローン病</li>
+                                    </ul>
+                                </details>
+                                <details class="frax-details">
+                                    <summary>▶ FRAXには含まれませんが、以下の状態も続発性骨粗鬆症となりうる病態で注意が必要です。</summary>
+                                    <div class="nested-content" style="padding: 5px 10px;">
+                                        <ul class="nested-list">
+                                            <li>2型糖尿病・CKD・COPD</li>
+                                            <li>副甲状腺機能亢進症</li>
+                                            <li>クッシング症候群</li>
+                                            <li>マルファン症候群</li>
+                                        </ul>
+                                        <p style="margin: 8px 0 4px; font-weight: bold; font-size: 0.9em;">以下の薬剤で治療中</p>
+                                        <ul class="nested-list">
+                                            <li>ピオグリタゾン</li>
+                                            <li>ワルファリン・ヘパリン</li>
+                                            <li>メトトレキサート</li>
+                                            <li>抗痙攣薬</li>
+                                            <li>SSRI</li>
+                                            <li>プロトンポンプ阻害薬</li>
+                                        </ul>
+                                    </div>
+                                </details>
+                                <div class="frax-footer">
+                                    <p><strong>FRAX簡易計算サポートをご利用ください</strong><br>(左のフォームで入力できます)</p>
+                                </div>
+                            </div>
+                        </details>
+
+                        <!-- BMD Warning -->
+                        <details id="bmd_warning_container" class="warning-accordion hidden" style="display: none;">
+                            <summary>⚠️ 骨密度測定の推奨</summary>
+                            <div class="bmd-warning-content accordion-content">
+                                <p class="emphasis-text">以下の状況であれば骨密度測定を推奨します（大腿骨＞腰椎＞前腕骨の順番で推奨）</p>
+                                <ul class="warning-list">
+                                    <li><strong>骨折歴あり</strong> (重症骨粗鬆症の判定のため推奨します)</li>
+                                    <li>骨折歴なしの場合:
+                                        <ul>
+                                            <li>65歳以上の女性</li>
+                                            <li>周閉経期(45‐55歳)～65歳未満で危険因子を有する女性</li>
+                                            <li>70歳以上の男性</li>
+                                            <li>50歳以上70歳未満で危険因子を有する男性</li>
+                                            <li>続発性骨粗鬆症を起こす疾患・薬剤使用中の成人</li>
+                                        </ul>
+                                    </li>
+                                    <li class="small-text">※閉経前女性と50歳未満男性はZ score≦-2.0をカットオフ値として採用</li>
+                                </ul>
+                                <details class="bmd-details">
+                                    <summary>危険因子 (クリックして展開)</summary>
+                                    <ul class="detail-list">
+                                        <li>身長が4cm縮んだ</li>
+                                        <li>飲酒習慣あり</li>
+                                        <li>喫煙習慣あり</li>
+                                        <li>BMI < 19 kg/㎡（やせ型体型）</li>
+                                        <li>胃切除後、吸収不良症候群の既往</li>
+                                        <li>早期閉経（45歳未満で生理がとまった）</li>
+                                        <li>卵巣摘出後</li>
+                                        <li>以下の病気で治療中である
+                                            <ul>
+                                                <li>関節リウマチ</li>
+                                                <li>副甲状腺機能亢進症</li>
+                                                <li>甲状腺機能亢進症</li>
+                                                <li>クッシング症候群</li>
+                                                <li>骨形成不全症</li>
+                                                <li>マルファン症候群</li>
+                                                <li>潰瘍性大腸炎</li>
+                                                <li>クローン病</li>
+                                                <li>てんかん</li>
+                                                <li>うつ病</li>
+                                                <li>HIV</li>
+                                            </ul>
+                                        </li>
+                                        <li>以下の薬剤を使用中/使用していた
+                                            <ul>
+                                                <li>ピオグリタゾン</li>
+                                                <li>ワルファリン・ヘパリン</li>
+                                                <li>メトトレキサート</li>
+                                                <li>抗痙攣薬</li>
+                                                <li>SSRI</li>
+                                                <li>プロトンポンプ阻害薬</li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </details>
+                                <details class="bmd-details">
+                                    <summary>骨密度測定の注意点 (クリックして展開)</summary>
+                                    <ul class="detail-list">
+                                        <li>腰椎測定の際は変形がつよい・骨硬化性病変のある椎体を除外できているか確認</li>
+                                        <li>高齢になるほど変形・骨棘形成のため腰椎のDEXAの信頼性がおちる→大腿骨を推奨</li>
+                                        <li>大腿骨は近位部全体と頚部のうち、低い方を採用する</li>
+                                        <li>頚部は誤差が大きいので、薬効判定には近位部全体を採用する</li>
+                                        <li>大腿骨も変形性関節症性の変化があれば参考値とする</li>
+                                        <li>副甲状腺機能亢進症の場合は非利き手の前腕骨の骨密度も参考になる</li>
+                                    </ul>
+                                </details>
+                            </div>
+                        </details>
+                    </div>
+
+                    <!-- Warnings/Contraindications Card (Triggered Alerts) -->
+                    <div class="card warning-card" id="warningCard" style="display: none;">
+                        <h3>⚠️ 注意事項・禁忌</h3>
+                        <ul id="warningList"></ul>
+                    </div>
+
+                    <!-- Recommendation Card -->
+                    <div class="card recommendation-card">
+                        <h2>💊 推奨治療方針</h2>
+
+                        <div class="line-container first-line">
+                            <div class="line-badge">First Line / Note</div>
+                            <div class="line-content" id="firstLineContent">
+                                <p class="placeholder-text">患者情報を入力してください</p>
+                            </div>
+                        </div>
+
+                        <div class="line-container second-line">
+                            <div class="line-badge">Second Line</div>
+                            <div class="line-content" id="secondLineContent">
+                                <p class="placeholder-text">---</p>
+                            </div>
+                        </div>
+
+                        <div class="line-container third-line">
+                            <div class="line-badge">Third Line</div>
+                            <div class="line-content" id="thirdLineContent">
+                                <p class="placeholder-text">---</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <footer>
+            <p>※本ツールは医師の治療判断を支援するものであり、最終的な治療方針は主治医が決定してください。</p>
+        </footer>
+    </div>
+    <!-- Drug Info Modal -->
+    <div id="diModal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <div id="diContent"></div>
+        </div>
+    </div>
+
+    <script src="logic.js"></script>
+    <script src="script.js"></script>
+</body>
+
+</html>
