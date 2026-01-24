@@ -52,7 +52,8 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="age">年齢 (40-99)</label>
-                                    <input type="number" id="age" name="age" min="40" max="120" value="70" required>
+                                    <input type="number" id="age" name="age" min="40" max="120" placeholder="年齢を入力"
+                                        required>
                                 </div>
                                 <div class="form-group" id="menopauseGroup">
                                     <label for="menopause">閉経状況</label>
@@ -97,7 +98,16 @@
                                     </label>
                                 </div>
 
-                                <!-- 2. Recent Fracture (Nested under fx_any) -->
+                                <!-- 2. Other Fracture (NEW) -->
+                                <div class="checkbox-group ml-4">
+                                    <label class="checkbox-container">
+                                        <input type="checkbox" id="fx_other" name="fx_other">
+                                        <span class="checkmark"></span>
+                                        その他の骨折
+                                    </label>
+                                </div>
+
+                                <!-- 3. Recent Fracture (Nested under fx_any) -->
                                 <div class="checkbox-group ml-4">
                                     <label class="checkbox-container">
                                         <input type="checkbox" id="fx_recent_24m" name="fx_recent_24m">
@@ -141,14 +151,20 @@
                                         </label>
                                         <div id="steroid_details_container"
                                             style="display: none; padding-left: 20px; margin-top: 5px; border-left: 3px solid #eee;">
-                                            <div style="margin-bottom: 8px;">
-                                                <label class="checkbox-container" style="font-size: 0.9em;">
-                                                    <input type="checkbox" id="steroid_current" name="steroid_current">
-                                                    <span class="checkmark"></span>
+                                            <div
+                                                style="margin-bottom: 8px; display: flex; flex-direction: column; gap: 5px;">
+                                                <label class="radio-container" style="font-size: 0.9em;">
+                                                    <input type="radio" name="steroid_status" value="current" checked>
+                                                    <span class="radio-mark"></span>
                                                     現在も内服中
                                                 </label>
+                                                <label class="radio-container" style="font-size: 0.9em;">
+                                                    <input type="radio" name="steroid_status" value="past">
+                                                    <span class="radio-mark"></span>
+                                                    過去に内服していた
+                                                </label>
                                             </div>
-                                            <div style="font-size: 0.9em;">
+                                            <div id="steroid_dose_area" style="font-size: 0.9em;">
                                                 <div style="font-weight: bold; margin-bottom: 3px;">グルココルチコイド投与量 1日量
                                                 </div>
                                                 <div class="radio-group"

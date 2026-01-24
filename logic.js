@@ -42,7 +42,7 @@ function evaluateTreatment(inputs) {
         inputs.ckd_stage === '4_5';
 
     // Special Case: BMD Unknown + No Fracture -> Hide Results, Show Warning
-    const hasFracture = inputs.fx_any || inputs.fx_morphological;
+    const hasFracture = inputs.fx_any || inputs.fx_morphological || inputs.fx_other;
     if (inputs.t_group === 'unknown' && !hasFracture) {
         return {
             risk: 'Unknown', // User requested 'Unknown' state
@@ -68,9 +68,6 @@ function evaluateTreatment(inputs) {
 /**
  * リスク分類ロジック
  */
-/**
- * リスク分類ロジック
- */
 function calculateRisk(inputs) {
     const isOsteoporosis = inputs.t_group === CONSTANTS.T_SCORE.LT_33 || inputs.t_group === CONSTANTS.T_SCORE.BETWEEN_33_25;
     const isOsteopenia = inputs.t_group === CONSTANTS.T_SCORE.BETWEEN_25_10;
@@ -87,20 +84,20 @@ function calculateRisk(inputs) {
     // Note: fx_morphological counts as a fracture for this logic?
     // User request: "Select severe morphological -> Anabolic". This is covered by Rule 2 above.
     // Let's assume Morphological fracture also counts towards High Risk generally.
-    const hasFractureHistory = inputs.fx_any || inputs.fx_morphological;
+    const hasFractureHistory = inputs.fx_any || inputs.fx_morphological || inputs.fx_other;
 
     if (hasFractureHistory && isOsteoporosis) return CONSTANTS.RISK.VERY_HIGH;
 
     // 4. (主要骨折 OR 直近24m骨折) + 骨量減少 -> Very High (Special Case)
     // Note: fx_severe is now "Clinical Vertebral/Proximal Femur".
-    // Is fx_morphological included here? Usually clinical is more severe. Keep as is for now unless needed.
     if ((inputs.fx_severe || inputs.fx_recent_24m) && isOsteopenia) return CONSTANTS.RISK.VERY_HIGH;
 
     // 5. [NEW] 高リスク因子あり ＋ (骨折歴あり OR 骨粗鬆症(T < -2.5)) -> Very High
     if (inputs.hasHighRiskFactor && (hasFractureHistory || isOsteoporosis)) return CONSTANTS.RISK.VERY_HIGH;
 
     // 6. GIO Logic -> Very High
-    if (getGIOTreatment && getGIOTreatment(inputs)) return CONSTANTS.RISK.VERY_HIGH;
+    // Pass fracture history to GIO helper
+    if (getGIOTreatment && getGIOTreatment(inputs, null, hasFractureHistory)) return CONSTANTS.RISK.VERY_HIGH;
 
     // 7. Early Menopause Special Case (40-45y)
     const isEarlyMenopauseRule = inputs.age >= 40 && inputs.age < 45 && (inputs.frax_early_menopause || inputs.menopause === 'yes');
@@ -144,7 +141,7 @@ function determineGoal(risk, inputs) {
     if (isEarlyMenopauseRule) return "婦人科と連携して対応";
 
     // 骨折歴ありの場合 (Morphological Fracture included)
-    if (inputs.fx_any || inputs.fx_morphological) {
+    if (inputs.fx_any || inputs.fx_morphological || inputs.fx_other) {
         if (isOsteopenia) {
             return "①大腿骨近位部骨密度 +3%　②T score≧‐1.0";
         }
@@ -154,7 +151,9 @@ function determineGoal(risk, inputs) {
 
     // GIO Goal (Treat to Target) - User Request: "Treat to Target 骨折予防・骨密度の正常化と維持(T≧-1.0)"
     // Check if GIO takes precedence (i.e., GIO regimen exists)
-    if (getGIOTreatment && getGIOTreatment(inputs)) {
+    // Pass fracture info
+    const hasFracture = inputs.fx_any || inputs.fx_morphological || inputs.fx_other;
+    if (getGIOTreatment && getGIOTreatment(inputs, risk, hasFracture)) {
         return "骨折予防・骨密度の正常化と維持(T≧-1.0)";
     }
 
@@ -293,7 +292,9 @@ function determineTreatment(risk, inputs) {
     }
 
     // --- Fracture & Severe Logic Definitions (Lifted for GIO Priority Check) ---
-    const hasFracture = inputs.fx_any || inputs.fx_severe || inputs.fx_morphological || inputs.fx_recent_24m || inputs.fx_vertebral_severe;
+    // Note: fx_morphological counts as "Any Fx" for general risk, but detailed handling differs.
+    // fx_other included in broad "hasFracture"
+    const hasFracture = inputs.fx_any || inputs.fx_severe || inputs.fx_morphological || inputs.fx_recent_24m || inputs.fx_vertebral_severe || inputs.fx_other;
 
     // Condition 1: Main Anabolic Rule (Osteoporosis + Fx OR Severe Osteoporosis T < -3.3)
     const isMainAnabolicRule =
@@ -311,13 +312,16 @@ function determineTreatment(risk, inputs) {
     // User Requirement: "If Currently Taking && Fx && OP -> Main Alg". 
     // "Main Alg" is Anabolic. GIO Prev 2 is also Anabolic. 
     // We prioritize Main Alg/Severe Fx Rule (Standard) if they apply, otherwise check GIO.
+    // User Update: GIO+Any Fx -> Teriparatide. This is covered by GIO helper if we pass hasFracture.
     const isStandardSevereRule = isMainAnabolicRule || isSevereVertebralFxRule;
 
-    if (!isStandardSevereRule) {
-        const gioResult = getGIOTreatment(inputs, risk);
-        if (gioResult) {
-            return gioResult;
-        }
+    // Special GIO Check: If GIO recommendation exists, use it.
+    // Note: Previous logic skipped GIO if isStandardSevereRule was true.
+    // However, GIO rules might be MORE specific (e.g. Teriparatide for GIO+Fx).
+    // Let's check GIO first if steroid is current.
+    const gioResult = getGIOTreatment(inputs, risk, hasFracture);
+    if (gioResult) {
+        return gioResult;
     }
 
 
@@ -343,7 +347,35 @@ function determineTreatment(risk, inputs) {
                 first_line: "デノスマブ or ゾレドロン酸",
                 second_line: "アレンドロン酸 or リセドロン酸",
                 third_line: "---",
-                note: `抗性ホルモン療法中（乳癌・前立腺癌）: T score < ${goalT} のため治療推奨です。SERMとアロマターゼ阻害薬の併用は原則推奨しません。`
+                note: `T score < ${goalT}であれば治療推奨です。SERMとアロマターゼ阻害薬の併用は原則推奨しません。`
+            };
+        }
+    }
+
+    // --- Special Rule: "Other Fracture" (Non-GIO) ---
+    // If fx_other is TRUE AND (No fx_severe AND No fx_recent)
+    // Note: If fx_morphological exists, do we treat it as Severe? 
+    // Current app treats fx_morphological similar to Severe/Anabolic if Severe Morphological.
+    // Let's isolate "Other Fracture Only" cases.
+    const isOtherFractureOnly = inputs.fx_other && !inputs.fx_severe && !inputs.fx_recent_24m && !inputs.fx_vertebral_severe && !inputs.fx_morphological_severe;
+
+    if (isOtherFractureOnly) {
+        if (isOsteopenia) {
+            // Case 1: Osteopenia
+            return {
+                first_line: "デノスマブ",
+                second_line: "ビスホスホネート",
+                third_line: "---",
+                note: "既存骨折あり（その他の骨折）＋骨量減少のため、デノスマブを推奨します。"
+            };
+        } else if (isNormal || inputs.t_group === 'unknown') {
+            // Case 2: Normal / Unknown
+            return {
+                first_line: "骨折リスクの評価と治療を検討してください",
+                second_line: "---",
+                third_line: "---",
+                note: `ASBMR2024ではデノスマブ、ビス剤が推奨されています。麻痺側の骨折ですか？<span class="link-action" onclick="document.getElementById('bmd_warning_container').parentElement.querySelector('details#bmd_warning_container').open = true; document.getElementById('bmd_warning_container').style.display='block';">骨密度は適切に評価できていますか？</span>`,
+                isRareCase: true
             };
         }
     }
@@ -376,7 +408,6 @@ function determineTreatment(risk, inputs) {
                         };
                     }
                 }
-                // Case B: No CV Risk (Romosozumab OK)
                 // Case B: No CV Risk (Romosozumab OK)
                 else {
                     if (inputs.risk_antihormonal) {
@@ -562,7 +593,6 @@ function determineTreatment(risk, inputs) {
         };
     }
 
-
     // --- Low Risk Logic ---
     return {
         first_line: "生活習慣指導・食事・運動療法",
@@ -587,7 +617,7 @@ function checkWarnings(inputs, treatment) {
 
     // Hypocalcemia
     if (inputs.hypocalcemia_risk) {
-        warnings.push("低カルシウム血症；ロモソズマブ、デノスマブ、ビスホスホネートはカルシウムとビタミンD投与でしっかりと補正してから使用してください。");
+        warnings.push("低カルシウム血症；ロモソズマブ、デノスマブ、ビスホスホネートは禁忌です。カルシウムとビタミンD投与でしっかりと補正してから使用してください。");
     }
 
     // Hypercalcemia Specific Warning
@@ -641,18 +671,14 @@ function checkWarnings(inputs, treatment) {
  * GIO治療アルゴリズム評価ヘルパー
  * @param {Object} inputs
  * @param {string} risk - Calculated Risk
+ * @param {boolean} hasFracture - Generalized fracture presence
  * @returns {Object|null} treatment object or null
  */
-function getGIOTreatment(inputs, risk) {
+function getGIOTreatment(inputs, risk, hasFracture) {
     if (!inputs.steroid_current) return null;
 
     const dose = inputs.steroid_dose; // 'lt_5', '5_to_7.5', 'ge_7.5'
-    const hasFracture = inputs.fx_any || inputs.fx_morphological;
-    const isOsteoporosis = inputs.t_group && inputs.t_group.indexOf('-3.3') !== -1;
-    const isOsteopenia = inputs.t_group === CONSTANTS.T_SCORE.BETWEEN_25_10;
-    const isNormal = inputs.t_group === CONSTANTS.T_SCORE.GE_10;
-    const isUnknown = inputs.t_group === CONSTANTS.T_SCORE.UNKNOWN || inputs.t_group === 'unknown';
-    const age = inputs.age;
+    // hasFracture passed in (already includes broad definition + fx_other)
 
     // Regimen Definitions
     const regimens = {
@@ -666,33 +692,39 @@ function getGIOTreatment(inputs, risk) {
             apply: (hasRisk) => {
                 if (hasRisk) {
                     return {
-                        first_line: "テリパラチド (骨折の危険性の高い骨粗鬆症)",
-                        second_line: "デノスマブ",
-                        third_line: "ビスホスホネート",
-                        note: "ビスフォスフォネートより椎体骨折予防効果が高いテリパラチドを推奨します。"
+                        first_line: "テリパラチド / アバロパラチド",
+                        second_line: "デノスマブ / ビスホスホネート",
+                        third_line: "---",
+                        note: "ビスフォスフォネートより椎体骨折予防効果が高いテリパラチド/デノスマブを推奨します。"
                     };
                 } else {
                     return {
                         first_line: "ビスホスホネート or デノスマブ",
                         second_line: "SERM / エルデカルシトール",
                         third_line: "---",
-                        note: "ステロイド性骨粗鬆症として治療介入を推奨します。"
+                        note: "病名「ステロイド性骨粗鬆症」として治療介入を推奨します。"
                     };
                 }
             }
         },
         PREV_2: {
-            first_line: "テリパラチド (骨折の危険性の高い骨粗鬆症)",
+            first_line: "テリパラチド / アバロパラチド",
             second_line: "デノスマブ",
             third_line: "ビスホスホネート",
-            note: "既存骨折があり骨折リスクが高いため、骨形成促進薬を第一選択として推奨します。"
+            note: "GIOに加え既存骨折があり骨折リスクが高いため、骨形成促進薬を第一選択として推奨します。"
         }
     };
 
+    // User Rule: If GIO + Any Fx -> Teriparatide (PREV_2 Logic)
+    if (hasFracture) return regimens.PREV_2;
+
+    const isOsteoporosis = inputs.t_group && (inputs.t_group === CONSTANTS.T_SCORE.LT_33 || inputs.t_group === CONSTANTS.T_SCORE.BETWEEN_33_25);
+    const isOsteopenia = inputs.t_group === CONSTANTS.T_SCORE.BETWEEN_25_10;
+    const isNormal = inputs.t_group === CONSTANTS.T_SCORE.GE_10;
+    const isUnknown = inputs.t_group === CONSTANTS.T_SCORE.UNKNOWN || inputs.t_group === 'unknown';
+    const age = inputs.age;
+
     // Calculate "Other High Risk Factor" for Prev Alg 1 Logic
-    // Defined in prompt as "Other fracture high risk factor".
-    // Does this include Dose? Probably the standard list (excluding steroid itself?).
-    // Let's assume standard high risk list.
     const hasOtherHighRisk = inputs.risk_parent_hip_fx || inputs.risk_frax || inputs.risk_diabetes || inputs.risk_ckd || inputs.risk_copd || inputs.risk_hormone || inputs.ckd_stage === '3' || inputs.ckd_stage === '4_5';
 
     // *** Decision Tree ***
@@ -704,8 +736,6 @@ function getGIOTreatment(inputs, risk) {
         // No Fracture
         if (age >= 65 && (isNormal || isOsteopenia || isUnknown)) return regimens.PREV_1.apply(hasOtherHighRisk);
         if (age >= 50 && age < 65 && isOsteopenia) return regimens.PREV_1.apply(hasOtherHighRisk);
-        // Prompt Check: "if Fx No && Osteoporosis then Prev Alg 1" (Implicit for <5mg?)
-        // The prompt says: "if Fx No && Osteoporosis then GIO Prev Alg 1"
         if (isOsteoporosis) return regimens.PREV_1.apply(hasOtherHighRisk);
     }
 
@@ -717,10 +747,6 @@ function getGIOTreatment(inputs, risk) {
         if (age < 50 && isOsteopenia) return regimens.PREV_1.apply(hasOtherHighRisk);
         if (age >= 50 && (isNormal || isOsteopenia || isUnknown)) return regimens.PREV_1.apply(hasOtherHighRisk);
         if (age >= 50 && isOsteoporosis) return regimens.TREATMENT;
-        // Note: For 50+ OP, use Treatment Alg. For <50 OP? Prompt doesn't explicit mention, maybe Treatment?
-        // Let's assume if OP is present, Treatment is usually indicated if not Prevention.
-        // Prompt says "if Fx No && 50+ && OP then GIO Treatment Alg".
-        // What about <50 && OP? GIO Logic usually treats OP.
         if (isOsteoporosis) return regimens.TREATMENT;
     }
 
@@ -733,7 +759,7 @@ function getGIOTreatment(inputs, risk) {
         if (isOsteoporosis) return regimens.TREATMENT;
     }
 
-    return null; // Logic didn't hit a GIO criteria (e.g. <5mg, <50y, Normal BMD)
+    return null; // Logic didn't hit a GIO criteria
 }
 
 /**

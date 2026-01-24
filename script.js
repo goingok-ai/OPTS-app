@@ -132,6 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!e.target.checked) {
             document.getElementById('fx_severe').checked = false;
             document.getElementById('fx_vertebral_severe').checked = false;
+            document.getElementById('fx_other').checked = false;
             document.getElementById('fx_recent_24m').checked = false;
             toggleVisibility('fx_severe_details', false);
         }
@@ -178,25 +179,60 @@ document.addEventListener('DOMContentLoaded', () => {
     // Steroid Details Toggle
     const riskSteroid = document.getElementById('risk_steroid');
     const steroidContainer = document.getElementById('steroid_details_container');
+    const steroidDoseArea = document.getElementById('steroid_dose_area');
+
     if (riskSteroid && steroidContainer) {
+        // Toggle main container with checkbox
         riskSteroid.addEventListener('change', (e) => {
             if (e.target.checked) {
                 steroidContainer.style.display = 'block';
+                // Also trigger status check to set correct dose area visibility
+                updateSteroidDoseVisibility();
             } else {
                 steroidContainer.style.display = 'none';
                 // Reset inputs if unchecked (optional but cleaner)
-                const currentCheck = document.getElementById('steroid_current');
-                if (currentCheck) currentCheck.checked = false;
-                const radios = document.getElementsByName('steroid_dose');
-                radios.forEach(r => r.checked = false);
+                const radiosStatus = document.getElementsByName('steroid_status');
+                // Reset to default 'current' when hiding? Or keep state? 
+                // Let's reset to current as per request default.
+                radiosStatus.forEach(r => {
+                    if (r.value === 'current') r.checked = true;
+                    else r.checked = false;
+                });
+
+                const radiosDose = document.getElementsByName('steroid_dose');
+                radiosDose.forEach(r => r.checked = false);
             }
             updateResult();
         });
+
+        // Listen for status changes (Current vs Past)
+        const statusRadios = document.getElementsByName('steroid_status');
+        statusRadios.forEach(radio => {
+            radio.addEventListener('change', () => {
+                updateSteroidDoseVisibility();
+                updateResult();
+            });
+        });
+
         // Listen for dose changes to update result immediately
         const doses = document.getElementsByName('steroid_dose');
         doses.forEach(d => {
             d.addEventListener('change', updateResult);
         });
+    }
+
+    function updateSteroidDoseVisibility() {
+        if (!steroidDoseArea) return;
+        const currentStatus = document.querySelector('input[name="steroid_status"]:checked')?.value;
+        if (currentStatus === 'current') {
+            steroidDoseArea.style.display = 'block';
+        } else {
+            steroidDoseArea.style.display = 'none';
+            // Optional: clear dose selection if switching to past? 
+            // For now, let's keep it simple or clear it to avoid confusion in data
+            const radiosDose = document.getElementsByName('steroid_dose');
+            radiosDose.forEach(r => r.checked = false);
+        }
     }
 
     // Helper: Menopause Visibility
@@ -295,21 +331,36 @@ document.addEventListener('DOMContentLoaded', () => {
             fx_any: document.getElementById('fx_any').checked,
             fx_severe: document.getElementById('fx_severe').checked,
             fx_vertebral_severe: document.getElementById('fx_vertebral_severe').checked,
+            fx_other: document.getElementById('fx_other').checked,
             fx_recent_24m: document.getElementById('fx_recent_24m').checked,
             fx_morphological: document.getElementById('fx_morphological').checked,
             fx_morphological_severe: document.getElementById('fx_morphological_severe').checked,
 
             // New Detailed Risk Factors
-            // Logic Update: Steroid Risk only true if dose is 5mg or more (5-7.5Mg or >=7.5mg)
+            // Logic Update: Steroid Risk only true if dose is 5mg or more (5-7.5Mg or >=7.5mg) AND Currently taking
             risk_steroid: (() => {
                 const isChecked = document.getElementById('risk_steroid').checked;
                 if (!isChecked) return false;
+
+                const status = document.querySelector('input[name="steroid_status"]:checked')?.value;
+                if (status !== 'current') return false; // Past usage is not "active high risk" in this context? 
+                // Wait, logic says "Taking Glucocorticoid (3 months+)" usually implies current for GIO high risk intervention.
+                // If "Past", it might just be a risk factor but not GIO target.
+                // Let's stick to: If Current AND Dose >= 5mg -> High Risk Flag.
+
                 const dose5_75 = document.querySelector('input[name="steroid_dose"][value="5_to_7.5"]')?.checked;
                 const doseGe75 = document.querySelector('input[name="steroid_dose"][value="ge_7.5"]')?.checked;
                 return dose5_75 || doseGe75;
             })(),
+            // New: Broad History for FRAX
+            has_steroid_history: document.getElementById('risk_steroid').checked,
+
             // Raw Steroid Data for GIO Logic
-            steroid_current: document.getElementById('steroid_current').checked,
+            steroid_current: (() => {
+                const isChecked = document.getElementById('risk_steroid').checked;
+                const status = document.querySelector('input[name="steroid_status"]:checked')?.value;
+                return isChecked && (status === 'current');
+            })(),
             steroid_dose: (() => {
                 const checked = document.querySelector('input[name="steroid_dose"]:checked');
                 return checked ? checked.value : null;
@@ -438,7 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
             prev_fracture: appData.fx_any,
             parent_hip_fracture: appData.risk_parent_hip_fx,
             smoking: fraxData.smoking,
-            steroid: appData.risk_steroid,
+            steroid: appData.has_steroid_history, // Modified to use broad history
             ra: fraxData.sec_ra,
             secondary_op: hasSecondaryOP,
             alcohol: fraxData.alcohol
@@ -610,7 +661,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // GIO Warning logic
         const gioContainer = document.getElementById('gio_warning_container');
-        const isSteroidCurrent = document.getElementById('steroid_current').checked;
+        // Logic change: Check steroid_current derived from status, not checkbox ID
+        const isSteroidChecked = document.getElementById('risk_steroid').checked;
+        const steroidStatus = document.querySelector('input[name="steroid_status"]:checked')?.value;
+        const isSteroidCurrent = isSteroidChecked && (steroidStatus === 'current');
 
         if (gioContainer) {
             if (isSteroidCurrent) {
