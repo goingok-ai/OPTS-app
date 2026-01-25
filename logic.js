@@ -31,16 +31,6 @@ const CONSTANTS = {
  * @returns {Object} { risk, treatment, warnings, goal }
  */
 function evaluateTreatment(inputs) {
-    // Consistency Check: CKD Risk vs CKD Stage
-    if (inputs.risk_ckd && inputs.ckd_stage === '1_2') {
-        return {
-            risk: 'Unknown',
-            treatment: null,
-            goal: null,
-            warnings: ["入力エラー: リスク因子で「CKD stage 3-5」が選択されていますが、腎機能で「eGFR 60以上」が選択されています。矛盾しています。"]
-        };
-    }
-
     // Pre-calculate derived risk boolean (Detailed High Risk Factors)
     inputs.hasHighRiskFactor = inputs.risk_steroid ||
         inputs.risk_parent_hip_fx ||
