@@ -53,7 +53,7 @@
                                 <div class="form-group">
                                     <label for="age">年齢 (40-99)</label>
                                     <input type="number" id="age" name="age" min="40" max="120" placeholder="年齢を入力"
-                                        required>
+                                        class="emphasized-input" style="color: #333;" required>
                                 </div>
                                 <div class="form-group" id="menopauseGroup">
                                     <label for="menopause">閉経状況</label>
@@ -107,8 +107,8 @@
                                     </label>
                                 </div>
 
-                                <!-- 3. Recent Fracture (Nested under fx_any) -->
-                                <div class="checkbox-group ml-4">
+                                <!-- 3. Recent Fracture (Moved to Top Level) -->
+                                <div class="checkbox-group">
                                     <label class="checkbox-container">
                                         <input type="checkbox" id="fx_recent_24m" name="fx_recent_24m">
                                         <span class="checkmark"></span>
@@ -270,23 +270,15 @@
                                 <label for="ckd_stage">腎機能</label>
                                 <select id="ckd_stage" name="ckd_stage" class="emphasized-input" style="color: #333;"
                                     required>
-                                    <option value="" disabled selected>-選択してください-</option>
-                                    <option value="1_2">eGFR 60以上</option>
+                                    <option value="" disabled>-選択してください-</option>
+                                    <option value="1_2" selected>eGFR 60以上</option>
                                     <option value="3">eGFR 30-59</option>
-                                    <option value="4_5">eGFR 29未満</option>
+                                    <option value="4_5">eGFR 29以下</option>
                                     <option value="unknown">不明</option>
                                 </select>
                             </div>
 
                             <div class="checkbox-group mt-2">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="cv_event_recent_12m" name="cv_event_recent_12m">
-                                    <span class="checkmark"></span>
-                                    直近12か月以内の心血管イベント（心筋梗塞/狭心症/脳卒中）
-                                </label>
-                            </div>
-
-                            <div class="checkbox-group">
                                 <label class="checkbox-container">
                                     <input type="checkbox" id="hypocalcemia_risk" name="hypocalcemia_risk">
                                     <span class="checkmark"></span>
@@ -299,6 +291,14 @@
                                     <input type="checkbox" id="hypercalcemia" name="hypercalcemia">
                                     <span class="checkmark"></span>
                                     高カルシウム血症
+                                </label>
+                            </div>
+
+                            <div class="checkbox-group">
+                                <label class="checkbox-container">
+                                    <input type="checkbox" id="cv_event_recent_12m" name="cv_event_recent_12m">
+                                    <span class="checkmark"></span>
+                                    直近12か月以内の心血管イベント（心筋梗塞/狭心症/脳卒中）
                                 </label>
                             </div>
 
@@ -318,133 +318,128 @@
                                 </label>
                             </div>
 
-                            <div class="checkbox-group">
-                                <label class="checkbox-container">
-                                    <input type="checkbox" id="injectable" name="injectable" checked>
-                                    <span class="checkmark"></span>
-                                    注射製剤の自己注射・通院が可能
-                                </label>
-                            </div>
-                        </div>
 
-                        <!-- 4. FRAX Calculator Support -->
-                        <div class="form-group-container frax-calculator-section">
-                            <h3>4. FRAX 簡易計算サポート</h3>
-                            <div class="form-group">
-                                <label>今すぐFRAXを計算しますか？</label>
-                                <div class="radio-group">
-                                    <label class="radio-container">
-                                        <input type="radio" id="frax_toggle_yes" name="calc_frax_toggle" value="yes">
-                                        <span class="radio-mark"></span>
-                                        はい
-                                    </label>
-                                    <label class="radio-container">
-                                        <input type="radio" id="frax_toggle_no" name="calc_frax_toggle" value="no"
-                                            checked>
-                                        <span class="radio-mark"></span>
-                                        いいえ
-                                    </label>
-                                </div>
-                            </div>
 
-                            <div id="frax_inputs" class="frax-inputs hidden">
-                                <p style="margin-bottom: 10px; font-weight: bold; color: #2c3e50;">
-                                    上記　2.骨折歴/リスク因子　特に「詳細な骨折ハイリスク因子」を入力してください</p>
-                                <p class="subsection-title">生活習慣・既往歴 (詳細)</p>
-
-                                <div class="checkbox-group">
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="frax_alcohol" name="frax_alcohol">
-                                        <span class="checkmark"></span>
-                                        <div class="label-text-wrapper">
-                                            <span class="main-label">飲酒習慣あり</span>
-                                            <small
-                                                class="risk-note">※1日エタノール24g以上（ビール600ml、日本酒2合、ワイン2杯、焼酎100ml、ウイスキーダブル）</small>
-                                        </div>
-                                    </label>
-                                </div>
-                                <div class="checkbox-group">
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="frax_smoking" name="frax_smoking">
-                                        <span class="checkmark"></span>
-                                        喫煙習慣あり
-                                    </label>
-                                </div>
-
-                                <div class="checkbox-group">
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="frax_secondary_digestive"
-                                            name="frax_secondary_digestive">
-                                        <span class="checkmark"></span>
-                                        胃切除後、吸収不良症候群の既往
-                                    </label>
-                                </div>
-                                <div class="checkbox-group">
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="frax_secondary_menopause"
-                                            name="frax_secondary_menopause">
-                                        <span class="checkmark"></span>
-                                        早期閉経（45歳未満）・卵巣摘出後
-                                    </label>
-                                </div>
-
-                                <p class="subsection-title">治療中の疾患</p>
-                                <div class="checkbox-grid">
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="frax_ra" name="frax_ra">
-                                        <span class="checkmark"></span>
-                                        関節リウマチ
-                                    </label>
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="frax_sec_type1dm" name="frax_sec_type1dm">
-                                        <span class="checkmark"></span>
-                                        1型糖尿病
-                                    </label>
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="frax_sec_hyperthyro" name="frax_sec_hyperthyro">
-                                        <span class="checkmark"></span>
-                                        甲状腺機能亢進症
-                                    </label>
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="frax_sec_oi" name="frax_sec_oi">
-                                        <span class="checkmark"></span>
-                                        骨形成不全症
-                                    </label>
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="frax_sec_hepatitis" name="frax_sec_hepatitis">
-                                        <span class="checkmark"></span>
-                                        慢性肝炎
-                                    </label>
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="frax_sec_uc" name="frax_sec_uc">
-                                        <span class="checkmark"></span>
-                                        潰瘍性大腸炎
-                                    </label>
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" id="frax_sec_crohn" name="frax_sec_crohn">
-                                        <span class="checkmark"></span>
-                                        クローン病
-                                    </label>
-                                </div>
-
-                                <button type="button" id="btn_calc_frax" class="btn-calc-frax">FRAX用 情報を整理する</button>
-
-                                <div id="frax_result_area" class="frax-result-area hidden">
-                                    <h4>FRAXサイト入力用 データ整理</h4>
-                                    <div class="result-content" id="frax_result_content">
-                                        <!-- JS populates this -->
+                            <!-- 4. FRAX Calculator Support -->
+                            <div class="form-group-container frax-calculator-section">
+                                <h3>4. FRAX 簡易計算サポート</h3>
+                                <div class="form-group">
+                                    <label>今すぐFRAXを計算しますか？</label>
+                                    <div class="radio-group">
+                                        <label class="radio-container">
+                                            <input type="radio" id="frax_toggle_yes" name="calc_frax_toggle"
+                                                value="yes">
+                                            <span class="radio-mark"></span>
+                                            はい
+                                        </label>
+                                        <label class="radio-container">
+                                            <input type="radio" id="frax_toggle_no" name="calc_frax_toggle" value="no"
+                                                checked>
+                                            <span class="radio-mark"></span>
+                                            いいえ
+                                        </label>
                                     </div>
-                                    <p class="instruction-text">
-                                        上記の内容をFRAXサイトで入力してください。<br>
-                                        サイトを開くと「Cookieの選択」が出ることがあります。「Accept」等を選択して進んでください。
-                                    </p>
-                                    <a href="https://www.fraxplus.org/ja/calculation-tool/#risk-factors" target="_blank"
-                                        class="btn-open-frax">
-                                        FRAXサイトを開く (別タブ)
-                                    </a>
+                                </div>
+
+                                <div id="frax_inputs" class="frax-inputs hidden">
+                                    <p style="margin-bottom: 10px; font-weight: bold; color: #2c3e50;">
+                                        上記　2.骨折歴/リスク因子　特に「詳細な骨折ハイリスク因子」を入力してください</p>
+                                    <p class="subsection-title">生活習慣・既往歴 (詳細)</p>
+
+                                    <div class="checkbox-group">
+                                        <label class="checkbox-container">
+                                            <input type="checkbox" id="frax_alcohol" name="frax_alcohol">
+                                            <span class="checkmark"></span>
+                                            <div class="label-text-wrapper">
+                                                <span class="main-label">飲酒習慣あり</span>
+                                                <small
+                                                    class="risk-note">※1日エタノール24g以上（ビール600ml、日本酒2合、ワイン2杯、焼酎100ml、ウイスキーダブル）</small>
+                                            </div>
+                                        </label>
+                                    </div>
+                                    <div class="checkbox-group">
+                                        <label class="checkbox-container">
+                                            <input type="checkbox" id="frax_smoking" name="frax_smoking">
+                                            <span class="checkmark"></span>
+                                            喫煙習慣あり
+                                        </label>
+                                    </div>
+
+                                    <div class="checkbox-group">
+                                        <label class="checkbox-container">
+                                            <input type="checkbox" id="frax_secondary_digestive"
+                                                name="frax_secondary_digestive">
+                                            <span class="checkmark"></span>
+                                            胃切除後、吸収不良症候群の既往
+                                        </label>
+                                    </div>
+                                    <div class="checkbox-group">
+                                        <label class="checkbox-container">
+                                            <input type="checkbox" id="frax_secondary_menopause"
+                                                name="frax_secondary_menopause">
+                                            <span class="checkmark"></span>
+                                            早期閉経（45歳未満）・卵巣摘出後
+                                        </label>
+                                    </div>
+
+                                    <p class="subsection-title">治療中の疾患</p>
+                                    <div class="checkbox-grid">
+                                        <label class="checkbox-container">
+                                            <input type="checkbox" id="frax_ra" name="frax_ra">
+                                            <span class="checkmark"></span>
+                                            関節リウマチ
+                                        </label>
+                                        <label class="checkbox-container">
+                                            <input type="checkbox" id="frax_sec_type1dm" name="frax_sec_type1dm">
+                                            <span class="checkmark"></span>
+                                            1型糖尿病
+                                        </label>
+                                        <label class="checkbox-container">
+                                            <input type="checkbox" id="frax_sec_hyperthyro" name="frax_sec_hyperthyro">
+                                            <span class="checkmark"></span>
+                                            甲状腺機能亢進症
+                                        </label>
+                                        <label class="checkbox-container">
+                                            <input type="checkbox" id="frax_sec_oi" name="frax_sec_oi">
+                                            <span class="checkmark"></span>
+                                            骨形成不全症
+                                        </label>
+                                        <label class="checkbox-container">
+                                            <input type="checkbox" id="frax_sec_hepatitis" name="frax_sec_hepatitis">
+                                            <span class="checkmark"></span>
+                                            慢性肝炎
+                                        </label>
+                                        <label class="checkbox-container">
+                                            <input type="checkbox" id="frax_sec_uc" name="frax_sec_uc">
+                                            <span class="checkmark"></span>
+                                            潰瘍性大腸炎
+                                        </label>
+                                        <label class="checkbox-container">
+                                            <input type="checkbox" id="frax_sec_crohn" name="frax_sec_crohn">
+                                            <span class="checkmark"></span>
+                                            クローン病
+                                        </label>
+                                    </div>
+
+                                    <button type="button" id="btn_calc_frax" class="btn-calc-frax">FRAX用
+                                        情報を整理する</button>
+
+                                    <div id="frax_result_area" class="frax-result-area hidden">
+                                        <h4>FRAXサイト入力用 データ整理</h4>
+                                        <div class="result-content" id="frax_result_content">
+                                            <!-- JS populates this -->
+                                        </div>
+                                        <p class="instruction-text">
+                                            上記の内容をFRAXサイトで入力してください。<br>
+                                            サイトを開くと「Cookieの選択」が出ることがあります。「Accept」等を選択して進んでください。
+                                        </p>
+                                        <a href="https://www.fraxplus.org/ja/calculation-tool/#risk-factors"
+                                            target="_blank" class="btn-open-frax">
+                                            FRAXサイトを開く (別タブ)
+                                        </a>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
                     </form>
                 </section>
 
@@ -501,6 +496,7 @@
 
                     <!-- Collapsible Warnings Group -->
                     <div class="collapsible-warnings-group">
+                        <!-- CKD Stage 3 Warning -->
                         <!-- CKD Stage 3 Warning -->
                         <details id="ckd3_warning_container" class="warning-accordion hidden"
                             style="display: none; background-color: #fff8e1; border: 1px solid #ffe0b2; color: #f57c00;">
@@ -564,7 +560,8 @@
                             <div class="accordion-content">
                                 <p>現在ステロイド内服中の方は、グルココルチコイド誘発性骨粗鬆症の管理と治療のガイドライン2023に基づいたリスク評価が必要です。</p>
                                 <p style="margin-top: 10px;">リスク評価のために6－12か月ごとの骨密度評価、脊椎X線検査で椎体骨折の検索が推奨されています。</p>
-                                <p style="margin-top: 10px;">療養指導としては骨粗鬆症同様にカルシウム、ビタミンD、タンパク質を十分量摂取する食事療法を推奨します。</p>
+                                <p style="margin-top: 10px;">
+                                    療養指導としては骨粗鬆症と同様に適度な荷重運動とカルシウム、ビタミンD、タンパク質を十分量摂取する食事療法を推奨します。</p>
                             </div>
                         </details>
 
@@ -586,6 +583,7 @@
                                 <details class="frax-details">
                                     <summary>▶ これらの病気で治療中である（クリックして展開）</summary>
                                     <ul class="nested-list">
+                                        <li>グルココルチコイドで治療中</li>
                                         <li>関節リウマチ</li>
                                         <li>1型糖尿病</li>
                                         <li>骨形成不全症</li>
@@ -606,6 +604,7 @@
                                         </ul>
                                         <p style="margin: 8px 0 4px; font-weight: bold; font-size: 0.9em;">以下の薬剤で治療中</p>
                                         <ul class="nested-list">
+                                            <li>抗性ホルモン療法</li>
                                             <li>ピオグリタゾン</li>
                                             <li>ワルファリン・ヘパリン</li>
                                             <li>メトトレキサート</li>
@@ -666,6 +665,8 @@
                                         </li>
                                         <li>以下の薬剤を使用中/使用していた
                                             <ul>
+                                                <li>グルココルチコイド（ステロイド）</li>
+                                                <li>抗性ホルモン薬</li>
                                                 <li>ピオグリタゾン</li>
                                                 <li>ワルファリン・ヘパリン</li>
                                                 <li>メトトレキサート</li>

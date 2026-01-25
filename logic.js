@@ -31,6 +31,16 @@ const CONSTANTS = {
  * @returns {Object} { risk, treatment, warnings, goal }
  */
 function evaluateTreatment(inputs) {
+    // Consistency Check: CKD Risk vs CKD Stage
+    if (inputs.risk_ckd && inputs.ckd_stage === '1_2') {
+        return {
+            risk: 'Unknown',
+            treatment: null,
+            goal: null,
+            warnings: ["入力エラー: リスク因子で「CKD stage 3-5」が選択されていますが、腎機能で「eGFR 60以上」が選択されています。矛盾しています。"]
+        };
+    }
+
     // Pre-calculate derived risk boolean (Detailed High Risk Factors)
     inputs.hasHighRiskFactor = inputs.risk_steroid ||
         inputs.risk_parent_hip_fx ||
@@ -88,9 +98,10 @@ function calculateRisk(inputs) {
 
     if (hasFractureHistory && isOsteoporosis) return CONSTANTS.RISK.VERY_HIGH;
 
-    // 4. (主要骨折 OR 直近24m骨折) + 骨量減少 -> Very High (Special Case)
+    // 4. (主要骨折 OR 直近24m骨折 OR 形態椎体骨折) + 骨量減少 -> Very High (Special Case)
     // Note: fx_severe is now "Clinical Vertebral/Proximal Femur".
-    if ((inputs.fx_severe || inputs.fx_recent_24m) && isOsteopenia) return CONSTANTS.RISK.VERY_HIGH;
+    // User Request: fx_morphological is treated same as fx_severe.
+    if ((inputs.fx_severe || inputs.fx_recent_24m || inputs.fx_morphological) && isOsteopenia) return CONSTANTS.RISK.VERY_HIGH;
 
     // 5. [NEW] 高リスク因子あり ＋ (骨折歴あり OR 骨粗鬆症(T < -2.5)) -> Very High
     if (inputs.hasHighRiskFactor && (hasFractureHistory || isOsteoporosis)) return CONSTANTS.RISK.VERY_HIGH;
@@ -259,6 +270,22 @@ function determineTreatment(risk, inputs) {
         };
     }
 
+    // --- Special Rule: Clinical/Morphological Fracture + Normal/Unknown BMD ---
+    // User Request: [fx morphologic] OR [fx_severe] AND [No Severe Detail] AND [Normal/Unknown] 
+    // -> 1st BP/Deno, 2nd SERM/Eldecalcitol
+    const isClinicalOrMorphological = inputs.fx_severe || inputs.fx_morphological;
+    const isNotSevereDetail = !inputs.fx_vertebral_severe && !inputs.fx_morphological_severe;
+    const isNormalOrUnknown = isNormal || inputs.t_group === 'unknown';
+
+    if (isClinicalOrMorphological && isNotSevereDetail && isNormalOrUnknown) {
+        return {
+            first_line: "ビスホスホネート / デノスマブ",
+            second_line: "SERM / エルデカルシトール",
+            third_line: "---",
+            note: "骨密度は正常または不明ですが、椎体骨折（臨床的・形態学的）または大腿骨近位部骨折があるため、骨粗鬆症の診断で薬物治療を推奨します。"
+        };
+    }
+
     // --- Special Rule: Recent Minor Fracture + Normal BMD ---
     // Condition: Normal BMD + Recent Fx (24m) + NO Severe Vertebral Fx
     if (isNormal && inputs.fx_recent_24m && !inputs.fx_severe) {
@@ -271,7 +298,7 @@ function determineTreatment(risk, inputs) {
                     <li>徹底した運動療法＋食事療法＋最低年1回の骨密度フォロー</li>
                 </ul>
             `,
-            second_line: "ビスフォスフォネート もしくは デノスマブ もしくは エルデカルシトール単剤",
+            second_line: "ビスホスホネート もしくは デノスマブ もしくは エルデカルシトール",
             third_line: "---",
             note: "",
             isRareCase: true
@@ -327,6 +354,20 @@ function determineTreatment(risk, inputs) {
 
     // --- Antihormonal Therapy Logic ---
     if (!hasFracture && inputs.risk_antihormonal) {
+
+        // 0. CKD Special Rule for Antihormonal (eGFR < 29, Stage 4/5)
+        if (inputs.ckd_stage === '4_5') {
+            const ahType = getAntihormonalType ? getAntihormonalType(inputs) : null;
+            const goalT = ahType === 'CASE_2' ? '-1.5' : '-2.0';
+            return {
+                first_line: "デノスマブ",
+                second_line: "アレンドロン酸",
+                third_line: "---",
+                note: `T score < ${goalT}であれば治療推奨です。デノスマブは低カルシウム血症リスクに注意してください。アレンドロン酸は慎重投与です。`
+            };
+        }
+
+
         // 1. Osteoporosis (T < -2.5 but NOT Severe T < -3.3)
         // Severe (T < -3.3) falls through to Very High Logic for Romosozumab
         if (isOsteoporosis && inputs.t_group !== CONSTANTS.T_SCORE.LT_33) {
@@ -344,10 +385,10 @@ function determineTreatment(risk, inputs) {
         if (ahType) {
             const goalT = ahType === 'CASE_2' ? '-1.5' : '-2.0';
             return {
-                first_line: "デノスマブ or ゾレドロン酸",
-                second_line: "アレンドロン酸 or リセドロン酸",
+                first_line: "デノスマブ / ゾレドロン酸",
+                second_line: "アレンドロン酸 / リセドロン酸",
                 third_line: "---",
-                note: `T score < ${goalT}であれば治療推奨です。SERMとアロマターゼ阻害薬の併用は原則推奨しません。`
+                note: `T score < ${goalT}であれば治療推奨です。SERMとアロマターゼ阻害薬の併用は原則推奨しません。ゾレドロン酸はeGFR<35なら禁忌です。`
             };
         }
     }
@@ -386,116 +427,109 @@ function determineTreatment(risk, inputs) {
         // 1. Anabolic Indication (Severe Vertebral)
         // (Variables hasFracture, isMainAnabolicRule, isSevereVertebralFxRule defined above)
 
-        if (inputs.injectable) {
+        // 1. Anabolic Indication (Severe Vertebral)
+        // (Variables hasFracture, isMainAnabolicRule, isSevereVertebralFxRule defined above)
 
-            // 1. Main Rule (Osteoporosis + Fx / Severe OP)
-            if (isMainAnabolicRule) {
-                // Case A: CV Event Recent (Avoid Romosozumab)
-                if (inputs.cv_event_recent_12m) {
-                    if (inputs.contraindication_pth) {
-                        return {
-                            first_line: "デノスマブ",
-                            second_line: "ビスホスホネート",
-                            third_line: "---",
-                            note: "心血管リスクによりロモソズマブ回避、かつPTH製剤禁忌のため、デノスマブを推奨します。"
-                        };
-                    } else {
-                        return {
-                            first_line: "テリパラチド or アバロパラチド",
-                            second_line: "デノスマブ",
-                            third_line: "ビスホスホネート",
-                            note: "心血管イベントリスクのためロモソズマブを回避します。骨折リスクが高いため骨形成促進薬を推奨します。"
-                        };
-                    }
-                }
-                // Case B: No CV Risk (Romosozumab OK)
-                else {
-                    if (inputs.risk_antihormonal) {
-                        const ahNote = hasFracture ?
-                            "骨折歴を有する骨粗鬆症は「重症骨粗鬆症」のため、骨形成促進薬を第一選択として推奨します。PTH製剤は抗性ホルモン療法中は原則使用推奨しません。" :
-                            "骨折の危険性の高い骨粗鬆症のため、骨形成促進薬を第一選択として推奨します。PTH製剤は抗性ホルモン療法中は原則使用推奨しません。";
-
-                        return {
-                            first_line: "ロモソズマブ",
-                            second_line: "デノスマブ",
-                            third_line: "ビスホスホネート",
-                            note: ahNote
-                        };
-                    } else if (inputs.contraindication_pth) {
-                        return {
-                            first_line: "ロモソズマブ",
-                            second_line: "デノスマブ",
-                            third_line: "ビスホスホネート",
-                            note: "PTH製剤禁忌（高Ca血症・骨腫瘍等）のため、骨形成促進薬としてロモソズマブを推奨します。"
-                        };
-                    } else {
-                        const stdNote = hasFracture ?
-                            "骨折歴を有する骨粗鬆症は「重症骨粗鬆症」のため、骨形成促進薬を第一選択として推奨します。" :
-                            "骨折の危険性の高い骨粗鬆症のため、骨形成促進薬を第一選択として推奨します。";
-
-                        return {
-                            first_line: "ロモソズマブ / テリパラチド / アバロパラチド",
-                            second_line: "デノスマブ",
-                            third_line: "ビスホスホネート",
-                            note: stdNote
-                        };
-                    }
-                }
-            }
-
-            // 2. Special Rule (Severe Vertebral Fx)
-            else if (isSevereVertebralFxRule) {
-                // Case A: CV Event Recent (Avoid Romosozumab)
-                if (inputs.cv_event_recent_12m) {
-                    if (inputs.contraindication_pth) {
-                        return {
-                            first_line: "デノスマブ",
-                            second_line: "ビスホスホネート",
-                            third_line: "---",
-                            note: "重症椎体骨折がありますが、心血管リスク(ロモ回避)およびPTH禁忌のため、デノスマブを推奨します。"
-                        };
-                    }
+        // 1. Main Rule (Osteoporosis + Fx / Severe OP)
+        if (isMainAnabolicRule) {
+            // Case A: CV Event Recent (Avoid Romosozumab)
+            if (inputs.cv_event_recent_12m) {
+                if (inputs.contraindication_pth) {
+                    return {
+                        first_line: "デノスマブ",
+                        second_line: "ビスホスホネート",
+                        third_line: "---",
+                        note: "心血管リスクによりロモソズマブ回避、かつPTH製剤禁忌のため、デノスマブを推奨します。"
+                    };
+                } else {
                     return {
                         first_line: "テリパラチド or アバロパラチド",
                         second_line: "デノスマブ",
                         third_line: "ビスホスホネート",
-                        note: "重症椎体骨折あり。心血管イベントリスクのためロモソズマブを回避します。"
-                    };
-                }
-                // Case B: No CV Risk
-                else {
-                    if (inputs.contraindication_pth) {
-                        return {
-                            first_line: "ロモソズマブ",
-                            second_line: "デノスマブ",
-                            third_line: "ビスホスホネート",
-                            note: "重症椎体骨折あり。PTH製剤禁忌のため、ロモソズマブを第一選択とします。"
-                        };
-                    }
-                    return {
-                        first_line: "テリパラチド / アバロパラチド",
-                        second_line: "ロモソズマブ",
-                        third_line: "デノスマブ or ビスホスホネート",
-                        note: "重症椎体骨折（多発・高度圧壊）は「骨折の危険性が高い骨粗鬆症」のため骨形成促進薬推奨。逐次療法は3rd line薬剤を推奨します。"
+                        note: "心血管イベントリスクのためロモソズマブを回避します。骨折リスクが高いため骨形成促進薬を推奨します。"
                     };
                 }
             }
-
-            // 3. Fallback
+            // Case B: No CV Risk (Romosozumab OK)
             else {
+                if (inputs.risk_antihormonal) {
+                    const ahNote = hasFracture ?
+                        "骨折歴を有する骨粗鬆症は「重症骨粗鬆症」のため、骨形成促進薬を第一選択として推奨します。PTH製剤は抗性ホルモン療法中は原則使用推奨しません。" :
+                        "骨折の危険性の高い骨粗鬆症のため、骨形成促進薬を第一選択として推奨します。PTH製剤は抗性ホルモン療法中は原則使用推奨しません。";
+
+                    return {
+                        first_line: "ロモソズマブ",
+                        second_line: "デノスマブ",
+                        third_line: "ビスホスホネート",
+                        note: ahNote
+                    };
+                } else if (inputs.contraindication_pth) {
+                    return {
+                        first_line: "ロモソズマブ",
+                        second_line: "デノスマブ",
+                        third_line: "ビスホスホネート",
+                        note: "PTH製剤禁忌（高Ca血症・骨腫瘍等）のため、骨形成促進薬としてロモソズマブを推奨します。"
+                    };
+                } else {
+                    const stdNote = hasFracture ?
+                        "骨折歴を有する骨粗鬆症は「重症骨粗鬆症」のため、骨形成促進薬を第一選択として推奨します。" :
+                        "骨折の危険性の高い骨粗鬆症のため、骨形成促進薬を第一選択として推奨します。";
+
+                    return {
+                        first_line: "ロモソズマブ / テリパラチド / アバロパラチド",
+                        second_line: "デノスマブ",
+                        third_line: "ビスホスホネート",
+                        note: stdNote
+                    };
+                }
+            }
+        }
+
+        // 2. Special Rule (Severe Vertebral Fx)
+        else if (isSevereVertebralFxRule) {
+            // Case A: CV Event Recent (Avoid Romosozumab)
+            if (inputs.cv_event_recent_12m) {
+                if (inputs.contraindication_pth) {
+                    return {
+                        first_line: "デノスマブ",
+                        second_line: "ビスホスホネート",
+                        third_line: "---",
+                        note: "重症椎体骨折がありますが、心血管リスク(ロモ回避)およびPTH禁忌のため、デノスマブを推奨します。"
+                    };
+                }
                 return {
-                    first_line: "デノスマブ",
-                    second_line: "ビスホスホネート",
-                    third_line: "---",
-                    note: "骨形成促進薬の適応基準（骨粗鬆症＋骨折、または重症骨粗鬆症）を満たさないため、デノスマブを推奨します。"
+                    first_line: "テリパラチド or アバロパラチド",
+                    second_line: "デノスマブ",
+                    third_line: "ビスホスホネート",
+                    note: "重症椎体骨折あり。心血管イベントリスクのためロモソズマブを回避します。"
                 };
             }
-        } else {
+            // Case B: No CV Risk
+            else {
+                if (inputs.contraindication_pth) {
+                    return {
+                        first_line: "ロモソズマブ",
+                        second_line: "デノスマブ",
+                        third_line: "ビスホスホネート",
+                        note: "重症椎体骨折あり。PTH製剤禁忌のため、ロモソズマブを第一選択とします。"
+                    };
+                }
+                return {
+                    first_line: "テリパラチド / アバロパラチド",
+                    second_line: "ロモソズマブ",
+                    third_line: "デノスマブ or ビスホスホネート",
+                    note: "重症椎体骨折（多発・高度圧壊）は「骨折の危険性が高い骨粗鬆症」のため骨形成促進薬推奨。逐次療法は3rd line薬剤を推奨します。"
+                };
+            }
+        }
+
+        // 3. Fallback
+        else {
             return {
-                first_line: "ビスホスホネート (経口/静注)",
-                second_line: "---",
+                first_line: "デノスマブ",
+                second_line: "ビスホスホネート",
                 third_line: "---",
-                note: "注射製剤困難なためBPを推奨します。効果不十分または新規骨折時に注射治療を再検討してください"
+                note: "骨形成促進薬の適応基準（骨粗鬆症＋骨折、重症椎体骨折または重症骨粗鬆症）を満たさないため、デノスマブを推奨します。"
             };
         }
     }
@@ -505,14 +539,12 @@ function determineTreatment(risk, inputs) {
 
         // Rule: 脆弱性骨折以外の高リスク因子 ＋ 骨量減少 -> Denosumab 1st, BP 2nd, SERM 3rd
         if (inputs.hasHighRiskFactor && isOsteopenia && !inputs.fx_any) {
-            if (inputs.injectable) {
-                return {
-                    first_line: "デノスマブ",
-                    second_line: "ビスホスホネート",
-                    third_line: "SERM (腰椎のみの骨粗鬆症)",
-                    note: "骨量減少＋高リスク因子のためデノスマブを推奨します。大腿骨の骨密度が保たれていればSERMも考慮できます。"
-                };
-            }
+            return {
+                first_line: "デノスマブ",
+                second_line: "ビスホスホネート",
+                third_line: "SERM (腰椎のみの骨粗鬆症)",
+                note: "骨量減少＋高リスク因子のためデノスマブを推奨します。大腿骨の骨密度が保たれていればSERMも考慮できます。"
+            };
         }
 
         // SERM Check
@@ -529,10 +561,10 @@ function determineTreatment(risk, inputs) {
             }
 
             return {
-                first_line: "ビスホスホネート (経口/静注)",
-                second_line: "デノスマブ",
-                third_line: "SERM (腰椎のみの骨粗鬆症)",
-                note: inputs.age >= 76 ? "骨折リスクが高いため、まずはBP製剤またはデノスマブを推奨します。(腰椎のみの骨粗鬆症ならSERMも選択枝となりえます)" : "骨折リスクが高いため、まずはBP製剤またはデノスマブを推奨します。"
+                first_line: "デノスマブ or ビスホスホネート (経口/静注)",
+                second_line: "SERM (腰椎のみの骨粗鬆症)",
+                third_line: "---",
+                note: inputs.age >= 76 ? "骨折リスクが高いため、まずはデノスマブまたはBP製剤を推奨します。(腰椎のみの骨粗鬆症ならSERMも選択枝となりえます)" : "骨折リスクが高いため、まずはデノスマブまたはBP製剤を推奨します。"
             };
         }
 
@@ -549,24 +581,12 @@ function determineTreatment(risk, inputs) {
                 noteText += "(腰椎のみの骨粗鬆症ならSERMも選択枝となりえます)";
             }
 
-            if (inputs.injectable) {
-                return {
-                    first_line: "デノスマブ",
-                    second_line: "ビスホスホネート",
-                    third_line: thirdLine,
-                    note: noteText
-                };
-            } else {
-                let secondLine = inputs.risk_antihormonal ? "---" : "SERM";
-                if (inputs.age >= 76) secondLine = "---";
-
-                return {
-                    first_line: "ビスホスホネート",
-                    second_line: secondLine,
-                    third_line: "---",
-                    note: "注射製剤が困難なため経口薬を推奨します。"
-                };
-            }
+            return {
+                first_line: "デノスマブ",
+                second_line: "ビスホスホネート",
+                third_line: thirdLine,
+                note: noteText
+            };
         }
 
         // 4. Normal BMD + High Risk + No Fracture
@@ -587,7 +607,7 @@ function determineTreatment(risk, inputs) {
 
         return {
             first_line: "ビスホスホネート",
-            second_line: secondLine,
+            second_line: "デノスマブ",
             third_line: "---",
             note: "標準的な治療を検討してください。"
         };
@@ -617,12 +637,12 @@ function checkWarnings(inputs, treatment) {
 
     // Hypocalcemia
     if (inputs.hypocalcemia_risk) {
-        warnings.push("低カルシウム血症；ロモソズマブ、デノスマブ、ビスホスホネートは禁忌です。カルシウムとビタミンD投与でしっかりと補正してから使用してください。");
+        warnings.push("低カルシウム血症；(補正Ca＝血清Ca‐血清アルブミン+4)　ロモソズマブ、デノスマブ、ビスホスホネートは禁忌です。カルシウムとビタミンD投与でしっかりと補正してから使用してください。");
     }
 
     // Hypercalcemia Specific Warning
     if (inputs.hypercalcemia) {
-        warnings.push("高カルシウム血症；活性型ビタミンD製剤・カルシウムサプリメントは中止のうえ、原疾患を検索してください。悪性腫瘍（肺がん、乳がん、前立腺がん、血液がん）、副甲状腺機能亢進症、サルコイドーシスなど");
+        warnings.push("高カルシウム血症；(補正Ca＝血清Ca‐血清アルブミン+4)　活性型ビタミンD製剤・カルシウムサプリメントは中止のうえ、原疾患を検索してください。悪性腫瘍（肺がん、乳がん、前立腺がん、血液がん）、副甲状腺機能亢進症(iPTH測定推奨)、サルコイドーシスなど");
     }
 
     // PTH Contraindications (Hypercalcemia, Bone Tumor, Primary HPT, Paget's)
@@ -642,13 +662,13 @@ function checkWarnings(inputs, treatment) {
 
     // Antihormonal Therapy Warnings
     if (inputs.risk_antihormonal) {
-        warnings.push("抗性ホルモン療法中：テリパラチド・アバロパラチドは原則使用しません。骨転移の評価を十分に行ってください。");
+        warnings.push("抗性ホルモン療法中：テリパラチド・アバロパラチド使用の際は骨転移の評価を十分に行ってください。");
         warnings.push("抗性ホルモン療法中：アロマターゼ阻害薬とSERMの併用は推奨されません（乳癌治療効果低下の懸念）。");
 
         // Critical Checks for Drug Conflicts
         const pthDrugs = ['テリパラチド', 'アバロパラチド'];
         if (treatment && ((treatment.first_line && pthDrugs.some(d => treatment.first_line.includes(d))) || (treatment.second_line && pthDrugs.some(d => treatment.second_line.includes(d))))) {
-            warnings.push("WARNING: 抗性ホルモン療法中のため、PTH製剤の使用は骨転移がないことを慎重に確認してください。");
+            warnings.push("WARNING: 抗性ホルモン療法中のため、PTH製剤使用前に骨転移がないことをしっかりと確認してください。");
         }
         if (treatment && ((treatment.first_line && treatment.first_line.includes('SERM')) || (treatment.second_line && treatment.second_line.includes('SERM')) || (treatment.third_line && treatment.third_line.includes('SERM')))) {
             warnings.push("WARNING: 抗性ホルモン療法中のため、SERMの併用は避けてください。");
@@ -693,9 +713,9 @@ function getGIOTreatment(inputs, risk, hasFracture) {
                 if (hasRisk) {
                     return {
                         first_line: "テリパラチド / アバロパラチド",
-                        second_line: "デノスマブ / ビスホスホネート",
-                        third_line: "---",
-                        note: "ビスフォスフォネートより椎体骨折予防効果が高いテリパラチド/デノスマブを推奨します。"
+                        second_line: "デノスマブ",
+                        third_line: "ビスホスホネート",
+                        note: "ビスホスホネートより椎体骨折予防効果が高いテリパラチド/デノスマブを推奨します。"
                     };
                 } else {
                     return {
@@ -711,7 +731,7 @@ function getGIOTreatment(inputs, risk, hasFracture) {
             first_line: "テリパラチド / アバロパラチド",
             second_line: "デノスマブ",
             third_line: "ビスホスホネート",
-            note: "GIOに加え既存骨折があり骨折リスクが高いため、骨形成促進薬を第一選択として推奨します。"
+            note: "GIOに加え既存骨折があり骨折リスクが高いため、骨形成促進薬を第一選択として推奨します。ロモソズマブはグルココルチコイド誘発性骨粗鬆症管理と治療ガイドライン(2023年)では、明確な推奨根拠がなく、「将来の課題」となっています。最新の論文を参照してください。"
         }
     };
 
@@ -772,7 +792,7 @@ function getAntihormonalType(inputs) {
     const hasFracture = inputs.fx_any || inputs.fx_morphological || inputs.fx_recent_24m || inputs.fx_vertebral_severe;
 
     // Major risks excluding FRAX/Parent for differentiation
-    const hasOtherMajorRisk = inputs.risk_diabetes || inputs.risk_ckd || inputs.risk_copd || inputs.risk_steroid || inputs.ckd_stage === '3' || inputs.ckd_stage === '4_5';
+    const hasOtherMajorRisk = inputs.risk_diabetes || inputs.risk_ckd || inputs.risk_copd || inputs.risk_steroid || inputs.ckd_stage === '4_5';
 
     if (isOsteopenia && !hasFracture && !hasOtherMajorRisk) {
         if (inputs.risk_frax || inputs.risk_parent_hip_fx) {

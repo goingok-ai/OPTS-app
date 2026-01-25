@@ -161,6 +161,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Mutual Exclusivity: Hypocalcemia vs Hypercalcemia
+    const hypoRisk = document.getElementById('hypocalcemia_risk');
+    const hyperRisk = document.getElementById('hypercalcemia');
+
+    if (hypoRisk && hyperRisk) {
+        hypoRisk.addEventListener('change', (e) => {
+            if (e.target.checked) hyperRisk.checked = false;
+            updateResult();
+        });
+        hyperRisk.addEventListener('change', (e) => {
+            if (e.target.checked) hypoRisk.checked = false;
+            updateResult();
+        });
+    }
+
     // Toggle Risk Details
     const btnRiskDetails = document.getElementById('btn_risk_details');
     const riskDetailsContainer = document.getElementById('risk_details_container');
@@ -272,6 +287,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             if (resultColumn) resultColumn.classList.remove('hidden');
+
+            // --- Fracture Detail Block Logic ---
+            // User Request: If fx_any is CHECKED, wait for fx_severe OR fx_other.
+            // Until selected, show "Select please" or keep previous? user said "Output ... don't change until selected".
+            // But usually "don't change" implies keeping the OLD result, which might be wrong (Low Risk).
+            // Better to show a placeholder message "詳細な骨折情報を選択してください" and HIDE the cards.
+            if (formData.fx_any && !formData.fx_severe && !formData.fx_other) {
+                // Hide Result Cards, Show Instruction
+                document.getElementById('treatmentGoal').textContent = "---";
+                document.getElementById('riskBadge').textContent = "---";
+                document.getElementById('riskBadge').className = 'risk-badge';
+                document.getElementById('riskBadge').style.backgroundColor = '#ccc';
+
+                // Custom Placeholder for Treatment Rules
+                renderTreatment({
+                    first_line: "骨折の詳細（臨床椎体・大腿骨近位部 or その他）を選択してください",
+                    second_line: "---",
+                    third_line: "---",
+                    note: ""
+                });
+                renderWarnings([]);
+                return; // Stop further calculation
+            }
 
             const result = evaluateTreatment(formData);
 
@@ -389,9 +427,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return document.getElementById('hypercalcemia').checked ||
                     document.getElementById('bone_tumor').checked ||
                     document.getElementById('hyperparathyroidism').checked;
-            })(),
-
-            injectable: document.getElementById('injectable').checked
+            })()
         };
     }
 
@@ -687,7 +723,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Let's use getFormData() logic or helper if available, or manual check.
         const hasRiskFactor =
             document.getElementById('fx_any').checked || // Although fracture is handled separately, it implies risk
+            document.getElementById('fx_morphological').checked || // Include Morphological Fracture
             document.getElementById('risk_steroid').checked ||
+            document.getElementById('risk_antihormonal').checked || // Antihormonal Therapy
             document.getElementById('risk_parent_hip_fx').checked ||
             document.getElementById('risk_frax').checked ||
             document.getElementById('risk_diabetes').checked ||
@@ -705,6 +743,33 @@ document.addEventListener('DOMContentLoaded', () => {
         if (showBmdWarning) {
             bmdContainer.style.display = 'block';
             bmdContainer.classList.remove('hidden');
+
+            // Strong Alert Logic: Fracture or Risk Factor present + BMD Unknown
+            // User requested "stronger alert display"
+            if (bmdUnknown && (fxAny || hasRiskFactor)) {
+                bmdContainer.open = true; // Force Open
+                bmdContainer.style.border = '2px solid #dc3545'; // Red Border
+                bmdContainer.style.backgroundColor = '#fff5f5'; // Red hue background
+                bmdContainer.querySelector('summary').innerHTML = '⚠️ <strong>【重要】</strong> 骨密度測定を強く推奨します';
+                bmdContainer.querySelector('summary').style.color = '#dc3545';
+                bmdContainer.querySelector('summary').style.fontWeight = 'bold';
+            } else {
+                // Reset to default warning style
+                bmdContainer.open = false; // Optional: auto-close or leave as is? Let's leave user control, but maybe reset style
+                bmdContainer.style.border = '1px solid #ffe0b2'; // Original Orange
+                bmdContainer.style.backgroundColor = 'white'; // Original was likely white or light orange logic
+                // script check: originally no inline color, css handles it or logic reset?
+                // The HTML has: style="display: none; background-color: white; ..." (It was not inline styled in previous view, check HTML)
+                // Actually HTML had no inline style for color in view? Let's check view_file 361.
+                // It was: <details id="bmd_warning_container" class="warning-accordion hidden" style="display: none;">
+                // So default is CSS. We should reset to empty string to revert to CSS.
+                bmdContainer.style.border = '';
+                bmdContainer.style.backgroundColor = '';
+                bmdContainer.querySelector('summary').innerHTML = '⚠️ 骨密度測定の推奨';
+                bmdContainer.querySelector('summary').style.color = '';
+                bmdContainer.querySelector('summary').style.fontWeight = '';
+            }
+
         } else {
             bmdContainer.style.display = 'none';
             bmdContainer.classList.add('hidden');
@@ -758,13 +823,31 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         'ビスホスホネート': {
             indication: '骨粗鬆症',
-            contraindication: ['低カルシウム血症', '食道通過障害（経口薬）30分以上上体を起こしていられない患者', '重度腎機能障害（eGFR目安 <30–35）', '本成分に対する過敏症'],
+            contraindication: ['低カルシウム血症', '食道通過障害（経口薬）30分以上上体を起こしていられない患者', '重度腎機能障害（eGFR目安 <30-35）', '本成分に対する過敏症'],
             caution: ['上部消化管障害', '顎骨壊死リスク', '生殖能を有する患者', '妊婦・授乳婦・小児'],
             link: 'https://www.kegg.jp/medicus-bin/japic_med?japic_code=00060152'
         },
-        'ビスホスホネート製剤': {
+        'アレンドロン酸': {
+            indication: '骨粗鬆症',
+            contraindication: ['低カルシウム血症', '食道通過障害（経口薬）30分以上上体を起こしていられない患者', '本成分に対する過敏症'],
+            caution: ['上部消化管障害', '顎骨壊死リスク', '重度腎機能障害（eGFR目安 <30–35）', '生殖能を有する患者', '妊婦・授乳婦・小児'],
+            link: 'https://www.kegg.jp/medicus-bin/japic_med?japic_code=00060152'
+        },
+        'リセドロン酸': {
             indication: '骨粗鬆症',
             contraindication: ['低カルシウム血症', '食道通過障害（経口薬）30分以上上体を起こしていられない患者', '重度腎機能障害（eGFR目安 <30–35）', '本成分に対する過敏症'],
+            caution: ['上部消化管障害', '顎骨壊死リスク', '生殖能を有する患者', '妊婦・授乳婦・小児'],
+            link: 'https://www.kegg.jp/medicus-bin/japic_med?japic_code=00061465'
+        },
+        'ゾレドロン酸': {
+            indication: '骨粗鬆症',
+            contraindication: ['低カルシウム血症', '脱水状態の患者', '重度腎機能障害（eGFR目安 <35）', '本成分に対する過敏症'],
+            caution: ['顎骨壊死リスク', '高齢者', '生殖能を有する患者', '妊婦・授乳婦・小児'],
+            link: 'https://www.kegg.jp/medicus-bin/japic_med?japic_code=00071673'
+        },
+        'ビスホスホネート製剤': {
+            indication: '骨粗鬆症',
+            contraindication: ['低カルシウム血症', '食道通過障害（経口薬）30分以上上体を起こしていられない患者', '重度腎機能障害（eGFR目安 <30-35）', '本成分に対する過敏症'],
             caution: ['上部消化管障害', '顎骨壊死リスク', '生殖能を有する患者', '妊婦・授乳婦・小児'],
             link: 'https://www.kegg.jp/medicus-bin/japic_med?japic_code=00060152'
         },
