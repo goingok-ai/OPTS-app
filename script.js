@@ -897,6 +897,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event.target == modal) {
             modal.classList.add('hidden');
         }
+        const contactModal = document.getElementById('contactModal');
+        if (contactModal && event.target == contactModal) {
+            contactModal.classList.add('hidden');
+        }
     }
 
     document.addEventListener('click', function (e) {
@@ -946,6 +950,129 @@ document.addEventListener('DOMContentLoaded', () => {
 
         diContent.innerHTML = html;
     }
+
+    // --- Contact Form Logic ---
+    function initContactForm() {
+        const modal = document.getElementById('contactModal');
+        const btnOpen = document.getElementById('btn_contact_form');
+        const btnClose = document.getElementById('closeContactModal');
+        // Add window close listener logic specifically for this modal
+        // (Shared window.onclick logic above handles it via class 'modal', but let's be safe)
+
+        if (btnOpen) {
+            btnOpen.addEventListener('click', () => {
+                modal.classList.remove('hidden');
+            });
+        }
+
+        if (btnClose) {
+            btnClose.addEventListener('click', () => {
+                modal.classList.add('hidden');
+            });
+        }
+
+        const form = document.getElementById('contactForm');
+        if (form) {
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                sendContactMail();
+            });
+        }
+    }
+
+    function sendContactMail() {
+        const message = document.getElementById('contact_message').value;
+        const replyEmail = document.getElementById('contact_email').value;
+
+        const report = getPatientDataReport();
+
+        const body = `
+お問い合わせ内容：
+${message}
+
+返信用メールアドレス：
+${replyEmail || '（未入力）'}
+
+--------------------------------------------------
+【自動添付：患者情報・出力結果】
+${report}
+--------------------------------------------------
+`;
+
+        const subject = "OPTSアプリについてのお問い合わせ";
+        const emailTo = "goingok55@gmail.com";
+
+        const mailtoLink = `mailto:${emailTo}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+        const link = document.createElement('a');
+        link.href = mailtoLink;
+        link.click();
+
+        // Optional: Close modal after sending?
+        // document.getElementById('contactModal').classList.add('hidden');
+    }
+
+    function getPatientDataReport() {
+        // Gather Form Data
+        const formData = getFormData();
+
+        // Gather Risk Badge Text
+        const risk = document.getElementById('riskBadge').textContent;
+        const goal = document.getElementById('treatmentGoal').textContent;
+        const line1 = document.getElementById('firstLineContent').textContent.replace(/\s+/g, ' ').trim();
+        const line2 = document.getElementById('secondLineContent').textContent.replace(/\s+/g, ' ').trim();
+        const line3 = document.getElementById('thirdLineContent').textContent.replace(/\s+/g, ' ').trim();
+
+        // Helper for boolean
+        const boolStr = (val) => val ? 'あり' : 'なし';
+
+        let report = `
+■基本情報
+性別: ${formData.sex === 'female' ? '女性' : '男性'}
+年齢: ${formData.age}歳
+閉経: ${formData.sex === 'female' ? formData.menopause : '-'}
+`;
+
+        report += `
+■骨折・リスク因子
+脆弱性骨折(全般): ${boolStr(formData.fx_any)}
+  - 臨床椎体・大腿骨近位部: ${boolStr(formData.fx_severe)}
+    - 重症椎体骨折: ${boolStr(formData.fx_vertebral_severe)}
+  - その他の骨折: ${boolStr(formData.fx_other)}
+  - 直近24か月以内: ${boolStr(formData.fx_recent_24m)}
+形態椎体骨折: ${boolStr(formData.fx_morphological)}
+  - 重症: ${boolStr(formData.fx_morphological_severe)}
+
+[その他リスク]
+CKD Stage: ${formData.ckd_stage}
+ステロイド(現在&5mg以上): ${boolStr(formData.risk_steroid)}
+ステロイド(FRAX既往): ${boolStr(formData.has_steroid_history)}
+抗ホルモン療法: ${boolStr(formData.risk_antihormonal)}
+2型糖尿病: ${boolStr(formData.risk_diabetes)}
+両親大腿骨骨折歴: ${boolStr(formData.risk_parent_hip_fx)}
+FRAX > 15%: ${boolStr(formData.risk_frax)}
+`;
+
+        report += `
+■検査値
+骨密度(T-score): ${formData.t_group}
+低Ca血症リスク: ${boolStr(formData.hypocalcemia_risk)}
+高Ca血症: ${boolStr(formData.hypercalcemia)}
+心血管イベント(12m以内): ${boolStr(formData.cv_event_recent_12m)}
+`;
+
+        report += `
+■出力結果
+リスク判定: ${risk}
+治療目標: ${goal}
+第一選択: ${line1}
+第二選択: ${line2}
+第三選択: ${line3}
+`;
+        return report;
+    }
+
+    initContactForm();
 
     // --- Service Worker Registration (PWA) ---
     if ('serviceWorker' in navigator) {
