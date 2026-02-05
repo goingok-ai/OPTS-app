@@ -1004,12 +1004,20 @@ ${report}
 
         const mailtoLink = `mailto:${emailTo}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
-        const link = document.createElement('a');
-        link.href = mailtoLink;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        // Hybrid Fix: iOS requires simulated click on DOM-attached element.
+        // Windows/Android often prefer window.location.href (blocking popups/security software might block script gestures).
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+        if (isIOS) {
+            const link = document.createElement('a');
+            link.href = mailtoLink;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } else {
+            window.location.href = mailtoLink;
+        }
 
         // Optional: Close modal after sending?
         // document.getElementById('contactModal').classList.add('hidden');
