@@ -1006,7 +1006,10 @@ ${report}
 
         const link = document.createElement('a');
         link.href = mailtoLink;
+        link.style.display = 'none';
+        document.body.appendChild(link);
         link.click();
+        document.body.removeChild(link);
 
         // Optional: Close modal after sending?
         // document.getElementById('contactModal').classList.add('hidden');
