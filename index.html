@@ -522,7 +522,7 @@
                                 </p>
                                 <p>低回転骨状態での抗骨吸収薬の使用は骨リモデリングの過剰抑制を介して、骨質低下や血管石灰化リスクを高める可能性が指摘されています。</p>
                                 <p>腎性骨異栄養症の診断は骨生検がGold
-                                    standardですが、骨生検を基準とした系統的レビューおよびメタ解析により、ABDはPTH低値や骨型アルカリフォスファターゼ（BALP）低値と関連します。<br><small
+                                    standardですが、骨生検を基準とした系統的レビューおよびメタ解析により、ABDはPTH低値や骨型アルカリフォスファターゼ（BALP）低値との関連が報告されています。<br><small
                                         class="citation">(Chao CT, et al. Adynamic bone disorder in chronic kidney
                                         disease...)</small></p>
                                 <div class="guideline-box">
@@ -729,7 +729,38 @@
 
         <footer>
             <p>※本ツールは医師の治療判断を支援するものであり、最終的な治療方針は主治医が決定してください。</p>
+            <button id="btn_contact_form" class="btn-contact-footer">今回の結果について開発者にご意見・問合わせ</button>
         </footer>
+    </div>
+
+    <!-- Contact Form Modal -->
+    <div id="contactModal" class="modal hidden">
+        <div class="modal-content contact-modal-content">
+            <span class="close-modal" id="closeContactModal">&times;</span>
+            <h3 class="modal-title">開発者へのご意見・お問い合わせ</h3>
+            <p class="modal-description">
+                ご入力いただいた内容は、お使いのメールソフトが起動し送信されます。<br>
+                患者さんの条件設定や出力結果は自動的に本文に追加されます。
+            </p>
+
+            <form id="contactForm">
+                <div class="form-group">
+                    <label for="contact_message">お問い合わせ内容・ご意見 <span class="badge-required">必須</span></label>
+                    <textarea id="contact_message" name="contact_message" rows="5" class="emphasized-input"
+                        placeholder="ここに内容を入力してください" required></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="contact_email">返信用メールアドレス <span class="badge-optional">任意</span></label>
+                    <input type="email" id="contact_email" name="contact_email" class="emphasized-input"
+                        placeholder="返信が必要な場合はご入力ください">
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-send-mail">メールソフトを起動して送信</button>
+                </div>
+            </form>
+        </div>
     </div>
     <!-- Drug Info Modal -->
     <div id="diModal" class="modal hidden">
