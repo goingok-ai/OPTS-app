@@ -999,10 +999,24 @@ ${report}
 --------------------------------------------------
 `;
 
-        const subject = "OPTSアプリについてのお問い合わせ";
+        const subject = "OPTSお問い合わせ";
         const emailTo = "goingok55@gmail.com";
 
         const mailtoLink = `mailto:${emailTo}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+        // Check Length
+        if (mailtoLink.length > 2000) {
+            alert("メール本文が長すぎるため、自動起動に失敗する可能性があります。\n本文をクリップボードにコピーしますので、メールソフトに貼り付けてください。");
+            navigator.clipboard.writeText(body).then(() => {
+                alert("コピーしました。メールソフトを手動で起動してください。");
+            }).catch(err => {
+                console.error('Copy failed', err);
+                alert("コピーに失敗しました。");
+            });
+            // Try enabling mailto anyway, but likely fail if too long
+            window.location.href = `mailto:${emailTo}?subject=${encodeURIComponent(subject)}`;
+            return;
+        }
 
         // Hybrid Fix: iOS requires simulated click on DOM-attached element.
         // Windows/Android often prefer window.location.href (blocking popups/security software might block script gestures).
@@ -1034,52 +1048,45 @@ ${report}
         const line2 = document.getElementById('secondLineContent').textContent.replace(/\s+/g, ' ').trim();
         const line3 = document.getElementById('thirdLineContent').textContent.replace(/\s+/g, ' ').trim();
 
-        // Helper for boolean
-        const boolStr = (val) => val ? 'あり' : 'なし';
+        // Helper: Only return string if true/value exists
+        const ifTrue = (val, label) => val ? `${label}: あり\n` : '';
+        const valStr = (val, label) => val ? `${label}: ${val}\n` : '';
 
-        let report = `
-■基本情報
-性別: ${formData.sex === 'female' ? '女性' : '男性'}
-年齢: ${formData.age}歳
-閉経: ${formData.sex === 'female' ? formData.menopause : '-'}
-`;
+        // Compact Report
+        let report = `[基本] ${formData.sex === 'female' ? '女' : '男'}/${formData.age}歳`;
+        if (formData.sex === 'female') report += `/閉経:${formData.menopause}`;
+        report += `\n`;
 
-        report += `
-■骨折・リスク因子
-脆弱性骨折(全般): ${boolStr(formData.fx_any)}
-  - 臨床椎体・大腿骨近位部: ${boolStr(formData.fx_severe)}
-    - 重症椎体骨折: ${boolStr(formData.fx_vertebral_severe)}
-  - その他の骨折: ${boolStr(formData.fx_other)}
-  - 直近24か月以内: ${boolStr(formData.fx_recent_24m)}
-形態椎体骨折: ${boolStr(formData.fx_morphological)}
-  - 重症: ${boolStr(formData.fx_morphological_severe)}
+        report += `[骨折/リスク]\n`;
+        if (formData.fx_any) report += `脆弱性骨折:あり\n`;
+        if (formData.fx_severe) report += `  -臨床椎体/大腿骨近位部\n`;
+        if (formData.fx_vertebral_severe) report += `    -重症椎体\n`;
+        if (formData.fx_other) report += `  -その他\n`;
+        if (formData.fx_recent_24m) report += `  -直近24m\n`;
+        if (formData.fx_morphological) report += `形態椎体:あり\n`;
+        if (formData.fx_morphological_severe) report += `  -重症\n`;
 
-[その他リスク]
-CKD Stage: ${formData.ckd_stage}
-ステロイド(現在&5mg以上): ${boolStr(formData.risk_steroid)}
-ステロイド(FRAX既往): ${boolStr(formData.has_steroid_history)}
-抗ホルモン療法: ${boolStr(formData.risk_antihormonal)}
-2型糖尿病: ${boolStr(formData.risk_diabetes)}
-両親大腿骨骨折歴: ${boolStr(formData.risk_parent_hip_fx)}
-FRAX > 15%: ${boolStr(formData.risk_frax)}
-`;
+        report += valStr(formData.ckd_stage, "CKD");
+        if (formData.risk_steroid) report += `ステロイド(現在):あり\n`;
+        if (formData.has_steroid_history && !formData.risk_steroid) report += `ステロイド(過去/少):あり\n`;
+        report += ifTrue(formData.risk_antihormonal, "抗ホルモン");
+        report += ifTrue(formData.risk_diabetes, "糖尿病");
+        report += ifTrue(formData.risk_parent_hip_fx, "親大腿骨Fx");
+        report += ifTrue(formData.risk_frax, "FRAX>15%");
 
-        report += `
-■検査値
-骨密度(T-score): ${formData.t_group}
-低Ca血症リスク: ${boolStr(formData.hypocalcemia_risk)}
-高Ca血症: ${boolStr(formData.hypercalcemia)}
-心血管イベント(12m以内): ${boolStr(formData.cv_event_recent_12m)}
-`;
+        report += `[検査]\n`;
+        report += valStr(formData.t_group, "T-score");
+        report += ifTrue(formData.hypocalcemia_risk, "低Caリスク");
+        report += ifTrue(formData.hypercalcemia, "高Ca");
+        report += ifTrue(formData.cv_event_recent_12m, "心血管(12m)");
 
-        report += `
-■出力結果
-リスク判定: ${risk}
-治療目標: ${goal}
-第一選択: ${line1}
-第二選択: ${line2}
-第三選択: ${line3}
-`;
+        report += `[結果]\n`;
+        report += `判定:${risk}\n`;
+        report += `目標:${goal}\n`;
+        report += `1:${line1.substring(0, 50)}${line1.length > 50 ? '...' : ''}\n`; // Truncate
+        if (line2 && line2 !== '---') report += `2:${line2.substring(0, 50)}\n`;
+        if (line3 && line3 !== '---') report += `3:${line3.substring(0, 50)}\n`;
+
         return report;
     }
 
